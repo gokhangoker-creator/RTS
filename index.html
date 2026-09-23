@@ -652,17 +652,39 @@ async function loadInitialData() {
    ================================================================ */
 async function fetchFromCloud() {
     try {
-        const res = await fetch(APPS_SCRIPT_URL + "?action=read");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(function() { controller.abort(); }, 8000);
+
+        const res = await fetch(APPS_SCRIPT_URL + "?action=read", {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const json = await res.json();
-        if (json.error || !json.data) return null;
-        if (json.data.length === 0) return null;
-        return parseFlatRows(json.data);
+        if (json.error) return null;
+
+        const hasInterns = json.data && json.data.length > 0;
+        const hasConfig = json.config && (json.config.units || json.config.trainings);
+
+        if (!hasInterns && !hasConfig) return null;
+
+        const parsed = hasInterns ? parseFlatRows(json.data) : {
+            interns: [], trainings: [], units: [], schools: [], departments: []
+        };
+
+        if (hasConfig) {
+            if (json.config.units && json.config.units.length > 0) parsed.units = json.config.units;
+            if (json.config.schools && json.config.schools.length > 0) parsed.schools = json.config.schools;
+            if (json.config.departments && json.config.departments.length > 0) parsed.departments = json.config.departments;
+            if (json.config.trainings && json.config.trainings.length > 0) parsed.trainings = json.config.trainings;
+        }
+
+        return parsed;
     } catch (err) {
         console.error('Cloud okuma hatası:', err);
         return null;
     }
 }
-
 /* ================================================================
    GITHUB'DAN OKU
    ================================================================ */
@@ -681,11 +703,11 @@ async function fetchFromGitHub() {
    VERİYİ DEĞİŞKENLERE UYGULA
    ================================================================ */
 function applyData(data) {
-    interns = data.interns || [];
-    trainings = data.trainings || [];
-    units = data.units || [];
-    schools = data.schools || [];
-    departments = data.departments || [];
+    if (data.interns) interns = data.interns;
+    if (data.trainings && data.trainings.length > 0) trainings = data.trainings;
+    if (data.units && data.units.length > 0) units = data.units;
+    if (data.schools && data.schools.length > 0) schools = data.schools;
+    if (data.departments && data.departments.length > 0) departments = data.departments;
     updateAllInternProgress();
     updateAllTables();
 }
