@@ -586,6 +586,249 @@ tailwind.config = {
     </button>
 </nav>
 <script>
+    /* ================================================================
+   VERİ KAYNAKLARI
+   ================================================================ */
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBwiFuVr7wTBQklMIcRG5LKwBNKZoBaSxYr3bRxuz3VbMPkAAGPb1_oKJKNwWSN1Jm/exec";
+const GITHUB_JSON_URL = "https://raw.githubusercontent.com/gokhangoker-creator/RTS/refs/heads/main/stajyer-verileri-2026-09-23.json";
+
+/* ================================================================
+   ANA YÜKLEME FONKSİYONU
+   1. Sheets'ten dene
+   2. Boşsa GitHub'dan yükle → Sheets'e yaz
+   3. O da olmazsa yerel veriye düş
+   ================================================================ */
+async function loadInitialData() {
+    // 1) Sheets'ten dene
+    const cloudData = await fetchFromCloud();
+    if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
+        applyData(cloudData);
+        showToast('Cloud verileri yüklendi (' + cloudData.interns.length + ' stajyer)', 'success');
+        return true;
+    }
+
+    // 2) Sheets boş → GitHub'dan yükle
+    const githubData = await fetchFromGitHub();
+    if (githubData && githubData.interns && githubData.interns.length > 0) {
+        applyData(githubData);
+        showToast('GitHub verileri yüklendi, Sheets\'e kaydediliyor...', 'info');
+        await saveToCloud();
+        showToast('Sheets\'e kaydedildi', 'success');
+        return true;
+    }
+
+    // 3) Yerel veriye düş
+    const localLoaded = await loadFromLocalStorage();
+    if (localLoaded) {
+        showToast('Yerel veriler yüklendi', 'info');
+        return true;
+    }
+
+    showToast('Hiçbir veri kaynağı bulunamadı', 'warning');
+    return false;
+}
+
+/* ================================================================
+   SHEETS'TEN OKU
+   ================================================================ */
+async function fetchFromCloud() {
+    try {
+        const res = await fetch(APPS_SCRIPT_URL + "?action=read");
+        const json = await res.json();
+        if (json.error || !json.data) return null;
+        if (json.data.length === 0) return null;
+        return parseFlatRows(json.data);
+    } catch (err) {
+        console.error('Cloud okuma hatası:', err);
+        return null;
+    }
+}
+
+/* ================================================================
+   GITHUB'DAN OKU
+   ================================================================ */
+async function fetchFromGitHub() {
+    try {
+        const res = await fetch(GITHUB_JSON_URL);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+    } catch (err) {
+        console.error('GitHub okuma hatası:', err);
+        return null;
+    }
+}
+
+/* ================================================================
+   VERİYİ DEĞİŞKENLERE UYGULA
+   ================================================================ */
+function applyData(data) {
+    interns = data.interns || [];
+    trainings = data.trainings || [];
+    units = data.units || [];
+    schools = data.schools || [];
+    departments = data.departments || [];
+    updateAllInternProgress();
+    updateAllTables();
+}
+
+/* ================================================================
+   FLATTEN SATIRLARI PARSE ET (Sheets'ten gelen veriyi JS objesine)
+   ================================================================ */
+function parseFlatRows(rows) {
+    const internMap = new Map();
+    const trainingMap = new Map();
+    const unitMap = new Map();
+    const schoolMap = new Map();
+    const deptMap = new Map();
+
+    rows.forEach(function(o) {
+        const iId = parseInt(o['interns__id']) || 0;
+        if (iId && !internMap.has(iId)) {
+            const wd = [];
+            for (let i = 1; i <= 7; i++) {
+                const k = 'interns__workingDays__' + String(i).padStart(3, '0');
+                if (o[k]) wd.push(o[k]);
+            }
+            internMap.set(iId, {
+                id: iId,
+                name: o['interns__name'] || '',
+                surname: o['interns__surname'] || '',
+                phone: o['interns__phone'] || '',
+                tcNo: o['interns__tcNo'] || '',
+                school: o['interns__school'] || '',
+                department: o['interns__department'] || '',
+                unit: o['interns__unit'] || 'Birim Atanmadı',
+                startDate: o['interns__startDate'] || '',
+                endDate: o['interns__endDate'] || '',
+                workingDays: wd,
+                requiredTrainings: [],
+                progress: parseInt(o['interns__progress']) || 0,
+                status: o['interns__status'] || 'Aktif',
+                archived: o['interns__archived'] === 'true' || o['interns__archived'] === true,
+                archivedDate: o['interns__archivedDate'] || null
+            });
+        }
+        if (iId) {
+            const tId = parseInt(o['interns__requiredTrainings__id']) || 0;
+            if (tId) {
+                const intern = internMap.get(iId);
+                if (intern && !intern.requiredTrainings.some(function(t) { return t.id === tId; })) {
+                    intern.requiredTrainings.push({
+                        id: tId,
+                        title: o['interns__requiredTrainings__title'] || '',
+                        instructor: o['interns__requiredTrainings__instructor'] || '',
+                        duration: o['interns__requiredTrainings__duration'] || '',
+                        completed: o['interns__requiredTrainings__completed'] === 'true' || o['interns__requiredTrainings__completed'] === true,
+                        completedDate: o['interns__requiredTrainings__completedDate'] || null
+                    });
+                }
+            }
+        }
+        const trId = parseInt(o['trainings__id']) || 0;
+        if (trId && !trainingMap.has(trId)) {
+            const topics = [];
+            for (let i = 1; i <= 7; i++) {
+                const k = 'trainings__topics__' + String(i).padStart(3, '0');
+                if (o[k]) topics.push(o[k]);
+            }
+            trainingMap.set(trId, {
+                id: trId,
+                title: o['trainings__title'] || '',
+                instructor: o['trainings__instructor'] || '',
+                duration: o['trainings__duration'] || '',
+                topics: topics
+            });
+        }
+        const uId = parseInt(o['units__id']) || 0;
+        if (uId && !unitMap.has(uId)) {
+            unitMap.set(uId, { id: uId, name: o['units__name'] || '', supervisor: o['units__supervisor'] || '' });
+        }
+        const sId = parseInt(o['schools__id']) || 0;
+        if (sId && !schoolMap.has(sId)) {
+            schoolMap.set(sId, { id: sId, name: o['schools__name'] || '' });
+        }
+        const dId = parseInt(o['departments__id']) || 0;
+        if (dId && !deptMap.has(dId)) {
+            deptMap.set(dId, { id: dId, name: o['departments__name'] || '' });
+        }
+    });
+
+    return {
+        interns: Array.from(internMap.values()),
+        trainings: Array.from(trainingMap.values()),
+        units: Array.from(unitMap.values()),
+        schools: Array.from(schoolMap.values()),
+        departments: Array.from(deptMap.values())
+    };
+}
+
+/* ================================================================
+   SHEETS'E YAZ
+   ================================================================ */
+async function saveToCloud() {
+    try {
+        const rows = buildFlatRows();
+        await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'write', data: rows })
+        });
+        return true;
+    } catch (err) {
+        console.error('Cloud yazma hatası:', err);
+        return false;
+    }
+}
+
+/* ================================================================
+   JS OBJELERİNİ FLATTEN SATIRLARA ÇEVİR (Sheets'e yazmak için)
+   ================================================================ */
+function buildFlatRows() {
+    const flat = [];
+    const maxSlots = 7;
+
+    interns.forEach(function(intern) {
+        const list = (intern.requiredTrainings && intern.requiredTrainings.length > 0)
+            ? intern.requiredTrainings
+            : [null];
+
+        list.forEach(function(rt) {
+            const row = {
+                'interns__id': intern.id,
+                'interns__name': intern.name,
+                'interns__surname': intern.surname,
+                'interns__phone': intern.phone,
+                'interns__tcNo': intern.tcNo,
+                'interns__school': intern.school,
+                'interns__department': intern.department,
+                'interns__unit': intern.unit,
+                'interns__startDate': intern.startDate,
+                'interns__endDate': intern.endDate,
+                'interns__progress': intern.progress,
+                'interns__status': intern.status,
+                'interns__archived': intern.archived ? 'true' : 'false',
+                'interns__archivedDate': intern.archivedDate || ''
+            };
+
+            for (let i = 1; i <= maxSlots; i++) {
+                row['interns__workingDays__' + String(i).padStart(3, '0')] =
+                    (intern.workingDays && intern.workingDays[i - 1]) ? intern.workingDays[i - 1] : '';
+            }
+
+            row['interns__requiredTrainings__id'] = rt ? rt.id : '';
+            row['interns__requiredTrainings__title'] = rt ? rt.title : '';
+            row['interns__requiredTrainings__instructor'] = rt ? rt.instructor : '';
+            row['interns__requiredTrainings__duration'] = rt ? rt.duration : '';
+            row['interns__requiredTrainings__completed'] = rt ? (rt.completed ? 'true' : 'false') : '';
+            row['interns__requiredTrainings__completedDate'] = rt ? (rt.completedDate || '') : '';
+
+            flat.push(row);
+        });
+    });
+
+    return flat;
+}
 /* ================================================================
    GLOBAL STATE
    ================================================================ */
@@ -890,9 +1133,11 @@ function setSyncStatus(state) {
 
 function saveToLocalStorage() {
     clearTimeout(saveDebounceTimer);
-    saveDebounceTimer = setTimeout(() => persistData(), 300);
+    saveDebounceTimer = setTimeout(async function() {
+        await persistData();
+        await saveToCloud();
+    }, 500);
 }
-
 async function persistData() {
     if (saveInFlight) { pendingSave = true; return; }
     saveInFlight = true;
@@ -2817,16 +3062,7 @@ function updateAllTables() {
    ================================================================ */
 document.addEventListener('DOMContentLoaded', async function() {
     refreshIcons();
-    const fileLoaded = await tryRestoreFileConnection();
-    let dataLoaded = fileLoaded;
-    if (!fileLoaded) dataLoaded = await loadFromLocalStorage();
-    if (!dataLoaded) saveToLocalStorage();
-
-    updateAllInternProgress();
-    updateDashboard();
-    populateInternsFilters();
-    populateCompletedFilters();
-    renderInterns(interns.filter(i => !i.archived));
+    await loadInitialData();
     refreshIcons();
 
     if (typeof Chart === 'undefined') setTimeout(function() { renderCharts(); }, 500);
