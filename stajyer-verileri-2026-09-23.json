@@ -1,0 +1,245 @@
+{
+  "interns": [
+    {
+      "id": 1,
+      "name": "Ahmet",
+      "surname": "Yılmaz",
+      "phone": "0532 123 4567",
+      "tcNo": "12345678901",
+      "school": "İstanbul Teknik Üniversitesi",
+      "department": "Bilgisayar Mühendisliği",
+      "unit": "IT Departmanı",
+      "startDate": "2024-01-15",
+      "endDate": "2024-07-15",
+      "workingDays": [
+        "Pazartesi",
+        "Salı",
+        "Çarşamba",
+        "Perşembe",
+        "Cuma"
+      ],
+      "requiredTrainings": [
+        {
+          "id": 1,
+          "title": "JavaScript Temelleri",
+          "instructor": "Ahmet Kaya",
+          "duration": "40 saat",
+          "completed": true,
+          "completedDate": "2024-03-01"
+        },
+        {
+          "id": 3,
+          "title": "Proje Yönetimi",
+          "instructor": "Mehmet Özkan",
+          "duration": "25 saat",
+          "completed": false,
+          "completedDate": null
+        }
+      ],
+      "progress": 100,
+      "status": "Tamamlandı"
+    },
+    {
+      "id": 2,
+      "name": "Zeynep",
+      "surname": "Kaya",
+      "phone": "0533 987 6543",
+      "tcNo": "98765432109",
+      "school": "Mimar Sinan Güzel Sanatlar Üniversitesi",
+      "department": "Grafik Tasarım",
+      "unit": "Tasarım Departmanı",
+      "startDate": "2024-02-01",
+      "endDate": "2024-08-01",
+      "workingDays": [
+        "Pazartesi",
+        "Çarşamba",
+        "Cuma"
+      ],
+      "requiredTrainings": [
+        {
+          "id": 2,
+          "title": "UI/UX Tasarım Prensipleri",
+          "instructor": "Zeynep Demir",
+          "duration": "30 saat",
+          "completed": true,
+          "completedDate": "2024-03-15"
+        }
+      ],
+      "progress": 100,
+      "status": "Tamamlandı"
+    },
+    {
+      "id": 3,
+      "name": "Mehmet",
+      "surname": "Demir",
+      "phone": "0534 456 7890",
+      "tcNo": "11223344556",
+      "school": "Boğaziçi Üniversitesi",
+      "department": "İşletme",
+      "unit": "İnsan Kaynakları",
+      "startDate": "2024-01-20",
+      "endDate": "2024-07-20",
+      "workingDays": [
+        "Salı",
+        "Perşembe"
+      ],
+      "requiredTrainings": [],
+      "progress": 100,
+      "status": "Tamamlandı"
+    },
+    {
+      "id": 4,
+      "name": "Ayşe",
+      "surname": "Öztürk",
+      "phone": "0535 321 0987",
+      "tcNo": "55667788990",
+      "school": "Ankara Üniversitesi",
+      "department": "Psikoloji",
+      "unit": "İnsan Kaynakları",
+      "startDate": "2023-09-01",
+      "endDate": "2024-03-01",
+      "workingDays": [
+        "Pazartesi",
+        "Salı",
+        "Çarşamba",
+        "Perşembe",
+        "Cuma"
+      ],
+      "requiredTrainings": [
+        {
+          "id": 4,
+          "title": "Dijital Pazarlama",
+          "instructor": "Ayşe Yılmaz",
+          "duration": "35 saat",
+          "completed": true,
+          "completedDate": "2023-10-15"
+        }
+      ],
+      "progress": 100,
+      "status": "Tamamlandı",
+      "archived": true,
+      "archivedDate": "2024-03-02"
+    }
+  ],
+  "trainings": [
+    {
+      "id": 1,
+      "title": "JavaScript Temelleri",
+      "instructor": "Ahmet Kaya",
+      "duration": "40 saat",
+      "topics": [
+        "Değişkenler ve Veri Tipleri",
+        "Fonksiyonlar",
+        "DOM Manipülasyonu",
+        "Event Handling",
+        "Asenkron Programlama"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "UI/UX Tasarım Prensipleri",
+      "instructor": "Zeynep Demir",
+      "duration": "30 saat",
+      "topics": [
+        "Kullanıcı Deneyimi Temelleri",
+        "Wireframe ve Prototipleme",
+        "Renk Teorisi",
+        "Tipografi",
+        "Kullanılabilirlik Testleri"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Proje Yönetimi",
+      "instructor": "Mehmet Özkan",
+      "duration": "25 saat",
+      "topics": [
+        "Proje Planlama",
+        "Risk Yönetimi",
+        "Takım Yönetimi",
+        "Agile Metodolojiler",
+        "Proje Değerlendirme"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Dijital Pazarlama",
+      "instructor": "Ayşe Yılmaz",
+      "duration": "35 saat",
+      "topics": [
+        "SEO Temelleri",
+        "Sosyal Medya Pazarlama",
+        "Google Ads",
+        "E-mail Marketing",
+        "Analitik ve Raporlama"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "id": 1,
+      "name": "IT Departmanı",
+      "supervisor": "Ahmet Kaya"
+    },
+    {
+      "id": 2,
+      "name": "Tasarım Departmanı",
+      "supervisor": "Zeynep Demir"
+    },
+    {
+      "id": 3,
+      "name": "İnsan Kaynakları",
+      "supervisor": "Mehmet Özkan"
+    },
+    {
+      "id": 4,
+      "name": "Pazarlama",
+      "supervisor": "Ayşe Yılmaz"
+    }
+  ],
+  "schools": [
+    {
+      "id": 1,
+      "name": "İstanbul Teknik Üniversitesi"
+    },
+    {
+      "id": 2,
+      "name": "Mimar Sinan Güzel Sanatlar Üniversitesi"
+    },
+    {
+      "id": 3,
+      "name": "Boğaziçi Üniversitesi"
+    },
+    {
+      "id": 4,
+      "name": "Ankara Üniversitesi"
+    }
+  ],
+  "departments": [
+    {
+      "id": 1,
+      "name": "Bilgisayar Mühendisliği"
+    },
+    {
+      "id": 2,
+      "name": "Grafik Tasarım"
+    },
+    {
+      "id": 3,
+      "name": "İşletme"
+    },
+    {
+      "id": 4,
+      "name": "Psikoloji"
+    },
+    {
+      "id": 5,
+      "name": "Makine Mühendisliği"
+    },
+    {
+      "id": 6,
+      "name": "Elektrik Mühendisliği"
+    }
+  ],
+  "lastUpdated": "2026-09-23T11:36:33.693Z"
+}
