@@ -605,33 +605,46 @@ const GITHUB_JSON_URL = "https://raw.githubusercontent.com/gokhangoker-creator/R
    3. O da olmazsa yerel veriye düş
    ================================================================ */
 async function loadInitialData() {
-    // 1) Sheets'ten dene
-    const cloudData = await fetchFromCloud();
-    if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
-        applyData(cloudData);
-        showToast('Cloud verileri yüklendi (' + cloudData.interns.length + ' stajyer)', 'success');
-        return true;
-    }
+    setSyncStatus('loading');
+    try {
+        // 1) Sheets'ten dene
+        const cloudData = await fetchFromCloud();
+        if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
+            applyData(cloudData);
+            showToast('Cloud verileri yüklendi (' + cloudData.interns.length + ' stajyer)', 'success');
+            setSyncStatus('saved');
+            return true;
+        }
 
-    // 2) Sheets boş → GitHub'dan yükle
-    const githubData = await fetchFromGitHub();
-    if (githubData && githubData.interns && githubData.interns.length > 0) {
-        applyData(githubData);
-        showToast('GitHub verileri yüklendi, Sheets\'e kaydediliyor...', 'info');
-        await saveToCloud();
-        showToast('Sheets\'e kaydedildi', 'success');
-        return true;
-    }
+        // 2) GitHub'dan dene
+        const githubData = await fetchFromGitHub();
+        if (githubData && githubData.interns && githubData.interns.length > 0) {
+            applyData(githubData);
+            showToast('GitHub verileri yüklendi, Sheets\'e kaydediliyor...', 'info');
+            await saveToCloud();
+            showToast('Sheets\'e kaydedildi', 'success');
+            setSyncStatus('saved');
+            return true;
+        }
 
-    // 3) Yerel veriye düş
-    const localLoaded = await loadFromLocalStorage();
-    if (localLoaded) {
-        showToast('Yerel veriler yüklendi', 'info');
-        return true;
-    }
+        // 3) Yerel veriye düş
+        const localLoaded = await loadFromLocalStorage();
+        if (localLoaded) {
+            showToast('Yerel veriler yüklendi', 'info');
+            setSyncStatus('saved');
+            return true;
+        }
 
-    showToast('Hiçbir veri kaynağı bulunamadı', 'warning');
-    return false;
+        showToast('Hiçbir veri kaynağı bulunamadı', 'warning');
+        setSyncStatus('saved');
+        return false;
+
+    } catch (err) {
+        console.error('Yükleme hatası:', err);
+        setSyncStatus('error');
+        showToast('Yükleme hatası', 'error');
+        return false;
+    }
 }
 
 /* ================================================================
