@@ -774,11 +774,17 @@ function parseFlatRows(rows) {
 async function saveToCloud() {
     try {
         const rows = buildFlatRows();
+        const config = {
+            units: units,
+            schools: schools,
+            departments: departments,
+            trainings: trainings
+        };
         await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'write', data: rows })
+            body: JSON.stringify({ action: 'write', data: rows, config: config })
         });
         return true;
     } catch (err) {
