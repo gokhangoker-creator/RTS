@@ -1,0 +1,2836 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stajyer Takip Programı</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+            colors: {
+                brand: { 50:'#eff6ff',100:'#dbeafe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+            },
+            boxShadow: {
+                'soft': '0 1px 3px 0 rgba(0,0,0,0.05), 0 1px 2px 0 rgba(0,0,0,0.03)',
+                'card': '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.03)',
+            }
+        }
+    }
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeInUp 0.25s ease-out; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal-anim { animation: slideUp 0.2s ease-out; }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+    .dark ::-webkit-scrollbar-thumb { background: #475569; background-clip: content-box; }
+
+    .sticky-header th { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
+    .sticky-col-1 { position: sticky; left: 0; z-index: 5; }
+
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid #3b82f6; outline-offset: 2px;
+    }
+
+    .toast-container {
+        position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+        display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+    }
+    .toast {
+        pointer-events: auto; min-width: 280px; max-width: 400px;
+        padding: 0.875rem 1rem; border-radius: 0.75rem;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1);
+        display: flex; align-items: center; gap: 0.75rem;
+        animation: toastIn 0.3s ease-out; font-size: 0.875rem; font-weight: 500;
+    }
+    .toast.removing { animation: toastOut 0.25s ease-in forwards; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
+    .toast-success { background: #059669; color: #fff; }
+    .toast-error   { background: #dc2626; color: #fff; }
+    .toast-info    { background: #2563eb; color: #fff; }
+    .toast-warning { background: #d97706; color: #fff; }
+
+    .card-accent { position: relative; overflow: hidden; }
+    .card-accent::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+        background: var(--accent, #3b82f6);
+    }
+
+    @media print { .no-print { display: none !important; } }
+
+    .bottom-nav { display: none; }
+    @media (max-width: 767px) {
+        .top-tabs { display: none !important; }
+        .bottom-nav {
+            display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+            background: white; border-top: 1px solid #e5e7eb; z-index: 40;
+            padding-bottom: env(safe-area-inset-bottom, 0);
+        }
+        .dark .bottom-nav { background: #1e293b; border-color: #334155; }
+        body { padding-bottom: 76px; }
+    }
+
+    .progress-track { background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+    .dark .progress-track { background: #334155; }
+    .progress-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+</style>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors">
+
+<div id="toastContainer" class="toast-container"></div>
+
+<div class="container mx-auto px-4 py-6 max-w-[1600px]">
+
+<header class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5 mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-brand-600 to-brand-800 rounded-xl flex items-center justify-center shadow-lg shadow-brand-600/20">
+                <i data-lucide="graduation-cap" class="w-6 h-6 text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Stajyer Takip Programı</h1>
+                <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400">Stajyer gelişimini takip edin ve eğitimleri yönetin</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+                <span id="syncStatus" class="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                    <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                    Yükleniyor...
+                </span>
+                <span class="text-slate-300 dark:text-slate-600">|</span>
+                <span class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i>
+                    Yerel Veritabanı
+                </span>
+            </div>
+            <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition" aria-label="Tema değiştir">
+                <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<div class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200/60 dark:border-slate-800 mb-6">
+    <nav class="top-tabs flex gap-1 p-2 overflow-x-auto">
+        <button onclick="showTab('dashboard', event)" data-tab="dashboard" class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition data-[active=true]:bg-brand-600 data-[active=true]:text-white data-[active=true]:shadow-md data-[active=true]:shadow-brand-600/20 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" data-active="true">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+            Ana Sayfa
+        </button>
+        <button onclick="showTab('interns', event)" data-tab="interns" class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition data-[active=true]:bg-brand-600 data-[active=true]:text-white text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" data-active="false">
+            <i data-lucide="users" class="w-4 h-4"></i>
+            Stajyerler
+        </button>
+        <button onclick="showTab('completed', event)" data-tab="completed" class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition data-[active=true]:bg-brand-600 data-[active=true]:text-white text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" data-active="false">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            Tamamlananlar
+        </button>
+        <button onclick="showTab('settings', event)" data-tab="settings" class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition data-[active=true]:bg-brand-600 data-[active=true]:text-white text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" data-active="false">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+            Ayarlar
+        </button>
+    </nav>
+
+    <div id="dashboard" class="tab-content active p-4 md:p-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 mb-6">
+            <div class="card-accent bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800" style="--accent:#2563eb">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-slate-500 dark:text-slate-400">Toplam Stajyer</span>
+                    <div class="w-9 h-9 bg-brand-100 dark:bg-brand-900/40 rounded-lg flex items-center justify-center">
+                        <i data-lucide="users" class="text-brand-600 dark:text-brand-400" style="width:18px;height:18px"></i>
+                    </div>
+                </div>
+                <p class="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white" id="totalInterns">0</p>
+                <p class="text-xs text-slate-400 mt-1">Kayıtlı aktif stajyer</p>
+            </div>
+
+            <div class="card-accent bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800" style="--accent:#059669">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-slate-500 dark:text-slate-400">Aktif Stajyer</span>
+                    <div class="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg flex items-center justify-center">
+                        <i data-lucide="user-check" class="text-emerald-600 dark:text-emerald-400" style="width:18px;height:18px"></i>
+                    </div>
+                </div>
+                <p class="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white" id="activeInterns">0</p>
+                <p class="text-xs text-slate-400 mt-1">Devam eden staj</p>
+            </div>
+
+            <div class="card-accent bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800" style="--accent:#d97706">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-slate-500 dark:text-slate-400">Tamamlanan</span>
+                    <button onclick="toggleDateFilter()" class="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/60 px-2 py-1 rounded-md flex items-center gap-1 transition">
+                        <i data-lucide="calendar" class="w-3 h-3"></i>
+                        Filtre
+                    </button>
+                </div>
+                <p class="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white" id="completedInterns">0</p>
+                <p class="text-xs text-slate-400 mt-1">Arşivlenmiş stajyer</p>
+                <div id="dateFilterSection" class="hidden mt-3 space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">Başlangıç</label>
+                            <input type="date" id="completedStartFilter" class="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" onchange="updateCompletedStats()">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">Bitiş</label>
+                            <input type="date" id="completedEndFilter" class="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" onchange="updateCompletedStats()">
+                        </div>
+                    </div>
+                    <button onclick="clearCompletedDateFilter()" class="w-full text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 py-1.5 rounded-md transition">
+                        Temizle
+                    </button>
+                </div>
+                <div id="dateRangeInfo" class="text-[11px] text-amber-600 dark:text-amber-400 mt-2 hidden">
+                    <span id="dateRangeText"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <div class="bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800">
+                <h3 class="text-base font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="pie-chart" class="w-4 h-4 text-brand-600"></i>
+                    Birimlere Göre Dağılım
+                </h3>
+                <div class="h-64 relative"><canvas id="unitChart"></canvas></div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800">
+                <h3 class="text-base font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-600"></i>
+                    Eğitim Durumu
+                </h3>
+                <div class="h-64 relative"><canvas id="trainingChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800">
+                <h3 class="text-base font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="building-2" class="w-4 h-4 text-brand-600"></i>
+                    Birimler ve Stajyer Sayıları
+                </h3>
+                <div class="overflow-x-auto -mx-5 px-5">
+                    <table class="w-full min-w-max text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-700">
+                                <th scope="col" class="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide pb-2 pr-3">Birim</th>
+                                <th scope="col" class="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide pb-2 pr-3">Sorumlu</th>
+                                <th scope="col" class="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wide pb-2 pr-3">Sayı</th>
+                                <th scope="col" class="text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wide pb-2">Oran</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unitsTable" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="space-y-5">
+                <div class="bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800">
+                    <div class="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                        <h3 class="text-base font-semibold flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
+                            Eğitim Almayanlar
+                        </h3>
+                        <button onclick="openAttendanceFormModal()" class="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm shadow-violet-600/20">
+                            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i>
+                            Katılım Formu
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto -mx-5 px-5 max-h-56 overflow-y-auto">
+                        <table class="w-full min-w-max text-sm">
+                            <thead class="sticky-header">
+                                <tr class="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <th scope="col" class="text-left text-[11px] font-semibold text-red-600 uppercase tracking-wide pb-2 pr-2">Stajyer</th>
+                                    <th scope="col" class="text-left text-[11px] font-semibold text-red-600 uppercase tracking-wide pb-2 pr-2">Birim</th>
+                                    <th scope="col" class="text-center text-[11px] font-semibold text-red-600 uppercase tracking-wide pb-2">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="noTrainingInterns" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl p-5 shadow-card border border-slate-200/60 dark:border-slate-800">
+                    <h3 class="text-base font-semibold mb-4 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
+                        Yaklaşan Staj Bitişleri
+                    </h3>
+                    <div class="overflow-x-auto -mx-5 px-5 max-h-56 overflow-y-auto">
+                        <table class="w-full min-w-max text-sm">
+                            <thead class="sticky-header">
+                                <tr class="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <th scope="col" class="text-left text-[11px] font-semibold text-amber-600 uppercase tracking-wide pb-2 pr-2">Stajyer</th>
+                                    <th scope="col" class="text-left text-[11px] font-semibold text-amber-600 uppercase tracking-wide pb-2 pr-2">Bitiş</th>
+                                    <th scope="col" class="text-center text-[11px] font-semibold text-amber-600 uppercase tracking-wide pb-2">Kalan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="upcomingEndings" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="interns" class="tab-content p-4 md:p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-5">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Stajyerler</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Aktif stajyerleri görüntüleyin ve yönetin</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="printInterns()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Yazdır
+                </button>
+                <button onclick="exportInternsToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-emerald-600/20">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Excel
+                </button>
+                <button onclick="addIntern()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-brand-600/20">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Yeni Stajyer
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-4 mb-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ad/Soyad</label>
+                    <div class="relative">
+                        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="internsNameFilter" placeholder="Ara..." class="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition" onkeyup="filterInterns()">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Okul</label>
+                    <select id="internsSchoolFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterInterns()">
+                        <option value="">Tümü</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Birim</label>
+                    <select id="internsUnitFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterInterns()">
+                        <option value="">Tümü</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Durum</label>
+                    <select id="internsStatusFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterInterns()">
+                        <option value="">Tümü</option>
+                        <option value="Aktif">Aktif</option>
+                        <option value="Tamamlandı">Tamamlandı</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Başlangıç</label>
+                    <input type="date" id="internsStartDateFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterInterns()">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Bitiş</label>
+                    <input type="date" id="internsEndDateFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterInterns()">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="clearInternsFilters()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Temizle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 overflow-hidden" id="internsContainer"></div>
+    </div>
+
+    <div id="completed" class="tab-content p-4 md:p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-5">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Tamamlananlar</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Arşivlenmiş stajyer kayıtları</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="printCompletedInterns()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Yazdır
+                </button>
+                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-emerald-600/20">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Excel
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-4 mb-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ad/Soyad</label>
+                    <div class="relative">
+                        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="completedNameFilter" placeholder="Ara..." class="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onkeyup="filterCompletedInterns()">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Okul</label>
+                    <select id="completedSchoolFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterCompletedInterns()">
+                        <option value="">Tümü</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Birim</label>
+                    <select id="completedUnitFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterCompletedInterns()">
+                        <option value="">Tümü</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Başlangıç</label>
+                    <input type="date" id="completedStartDateFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterCompletedInterns()">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Bitiş</label>
+                    <input type="date" id="completedEndDateFilter" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" onchange="filterCompletedInterns()">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="clearCompletedFilters()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Temizle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 overflow-hidden" id="completedContainer"></div>
+    </div>
+
+    <div id="settings" class="tab-content p-4 md:p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-5">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ayarlar</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Birim, okul, bölüm ve eğitim tanımlarını yönetin</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="addUnit()" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-amber-600/20">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Birim
+                </button>
+                <button onclick="addSchool()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-brand-600/20">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Okul
+                </button>
+                <button onclick="addDepartment()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-emerald-600/20">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Bölüm
+                </button>
+                <button onclick="addTraining()" class="bg-violet-600 hover:bg-violet-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition shadow-sm shadow-violet-600/20">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Eğitim
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <i data-lucide="building-2" class="w-4 h-4 text-amber-600"></i> Birimler
+                    </h3>
+                    <button onclick="toggleUnitsDropdown()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1">
+                        <i data-lucide="chevron-down" id="unitsToggleIcon" class="w-4 h-4 transition-transform"></i>
+                    </button>
+                </div>
+                <div id="unitsCollapsed" class="text-sm text-slate-500 dark:text-slate-400">
+                    <span id="unitsCount" class="font-semibold text-slate-700 dark:text-slate-200">0</span> birim kayıtlı
+                </div>
+                <div id="unitsDropdown" class="hidden">
+                    <div class="space-y-2 max-h-96 overflow-y-auto pr-1" id="unitsContainer"></div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <i data-lucide="school" class="w-4 h-4 text-brand-600"></i> Okullar
+                    </h3>
+                    <button onclick="toggleSchoolsDropdown()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1">
+                        <i data-lucide="chevron-down" id="schoolsToggleIcon" class="w-4 h-4 transition-transform"></i>
+                    </button>
+                </div>
+                <div id="schoolsCollapsed" class="text-sm text-slate-500 dark:text-slate-400">
+                    <span id="schoolsCount" class="font-semibold text-slate-700 dark:text-slate-200">0</span> okul kayıtlı
+                </div>
+                <div id="schoolsDropdown" class="hidden">
+                    <div class="space-y-2 max-h-96 overflow-y-auto pr-1" id="schoolsContainer"></div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Bölümler
+                    </h3>
+                    <button onclick="toggleDepartmentsDropdown()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1">
+                        <i data-lucide="chevron-down" id="departmentsToggleIcon" class="w-4 h-4 transition-transform"></i>
+                    </button>
+                </div>
+                <div id="departmentsCollapsed" class="text-sm text-slate-500 dark:text-slate-400">
+                    <span id="departmentsCount" class="font-semibold text-slate-700 dark:text-slate-200">0</span> bölüm kayıtlı
+                </div>
+                <div id="departmentsDropdown" class="hidden">
+                    <div class="space-y-2 max-h-96 overflow-y-auto pr-1" id="departmentsContainer"></div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <i data-lucide="graduation-cap" class="w-4 h-4 text-violet-600"></i> Eğitimler
+                    </h3>
+                    <button onclick="toggleTrainingsDropdown()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1">
+                        <i data-lucide="chevron-down" id="trainingsToggleIcon" class="w-4 h-4 transition-transform"></i>
+                    </button>
+                </div>
+                <div id="trainingsCollapsed" class="text-sm text-slate-500 dark:text-slate-400">
+                    <span id="trainingsCount" class="font-semibold text-slate-700 dark:text-slate-200">0</span> eğitim kayıtlı
+                </div>
+                <div id="trainingsDropdown" class="hidden">
+                    <div class="space-y-2 max-h-96 overflow-y-auto pr-1" id="trainingsContainer"></div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/60 dark:border-slate-800 p-5 md:col-span-2 xl:col-span-2">
+                <h3 class="text-base font-semibold flex items-center gap-2 mb-4">
+                    <i data-lucide="hard-drive" class="w-4 h-4 text-indigo-600"></i>
+                    Yedekleme & Taşıma
+                </h3>
+                <div class="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div id="connectedFileName" class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                        Bağlı değil (veriler sadece bu tarayıcıda saklanıyor)
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <button id="connectFileBtn" onclick="connectDataFile()" class="flex-1 min-w-[160px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg transition text-sm font-medium flex items-center justify-center gap-1.5">
+                            <i data-lucide="folder-open" class="w-4 h-4"></i>
+                            Veri Dosyasına Bağlan
+                        </button>
+                        <button id="reconnectFileBtn" onclick="reconnectDataFile()" class="hidden flex-1 min-w-[160px] bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg transition text-sm font-medium flex items-center justify-center gap-1.5">
+                            <i data-lucide="unlock" class="w-4 h-4"></i>
+                            Yeniden Bağlan
+                        </button>
+                        <button id="disconnectFileBtn" onclick="disconnectDataFile()" class="hidden bg-slate-400 hover:bg-slate-500 text-white px-3 py-2 rounded-lg transition text-sm font-medium flex items-center justify-center gap-1.5">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                            Kaldır
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2.5">Bağlandığınızda tüm değişiklikler otomatik olarak bu dosyaya kaydedilir. (Chrome/Edge gerekir)</p>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Dosya bağlantısı desteklenmeyen tarayıcılarda veya tek seferlik taşımada:</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button onclick="exportData()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg transition text-sm font-medium flex items-center justify-center gap-1.5">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        Verileri Dışa Aktar
+                    </button>
+                    <button onclick="document.getElementById('importFileInput').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg transition text-sm font-medium flex items-center justify-center gap-1.5">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Verileri İçe Aktar
+                    </button>
+                    <input type="file" id="importFileInput" accept="application/json" class="hidden" onchange="importDataFromFile(event)">
+                </div>
+                <div id="importStatus" class="text-xs mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div id="modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl modal-anim border border-slate-200 dark:border-slate-800">
+        <div class="flex justify-between items-center p-5 border-b border-slate-200 dark:border-slate-800">
+            <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white"></h3>
+            <button onclick="closeModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition" aria-label="Kapat">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div id="modalContent" class="p-5 overflow-y-auto flex-1"></div>
+    </div>
+</div>
+
+<nav class="bottom-nav">
+    <button onclick="showTab('dashboard', event)" data-tab="dashboard" class="tab-btn-mobile flex-1 flex flex-col items-center gap-1 py-2.5 text-slate-500 dark:text-slate-400 transition data-[active=true]:text-brand-600" data-active="true">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">Ana Sayfa</span>
+    </button>
+    <button onclick="showTab('interns', event)" data-tab="interns" class="tab-btn-mobile flex-1 flex flex-col items-center gap-1 py-2.5 text-slate-500 dark:text-slate-400 transition data-[active=true]:text-brand-600" data-active="false">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">Stajyerler</span>
+    </button>
+    <button onclick="showTab('completed', event)" data-tab="completed" class="tab-btn-mobile flex-1 flex flex-col items-center gap-1 py-2.5 text-slate-500 dark:text-slate-400 transition data-[active=true]:text-brand-600" data-active="false">
+        <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">Tamamlanan</span>
+    </button>
+    <button onclick="showTab('settings', event)" data-tab="settings" class="tab-btn-mobile flex-1 flex flex-col items-center gap-1 py-2.5 text-slate-500 dark:text-slate-400 transition data-[active=true]:text-brand-600" data-active="false">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span class="text-[10px] font-medium">Ayarlar</span>
+    </button>
+</nav>
+<script>
+/* ================================================================
+   GLOBAL STATE
+   ================================================================ */
+let interns = [
+    {
+        id: 1, name: 'Ahmet', surname: 'Yılmaz',
+        phone: '0532 123 4567', tcNo: '12345678901',
+        school: 'İstanbul Teknik Üniversitesi', department: 'Bilgisayar Mühendisliği',
+        unit: 'IT Departmanı', startDate: '2024-01-15', endDate: '2024-07-15',
+        workingDays: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'],
+        requiredTrainings: [
+            { id: 1, title: 'JavaScript Temelleri', instructor: 'Ahmet Kaya', duration: '40 saat', completed: true, completedDate: '2024-03-01' },
+            { id: 3, title: 'Proje Yönetimi', instructor: 'Mehmet Özkan', duration: '25 saat', completed: false, completedDate: null }
+        ],
+        progress: 85, status: 'Aktif'
+    },
+    {
+        id: 2, name: 'Zeynep', surname: 'Kaya',
+        phone: '0533 987 6543', tcNo: '98765432109',
+        school: 'Mimar Sinan Güzel Sanatlar Üniversitesi', department: 'Grafik Tasarım',
+        unit: 'Tasarım Departmanı', startDate: '2024-02-01', endDate: '2024-08-01',
+        workingDays: ['Pazartesi', 'Çarşamba', 'Cuma'],
+        requiredTrainings: [
+            { id: 2, title: 'UI/UX Tasarım Prensipleri', instructor: 'Zeynep Demir', duration: '30 saat', completed: true, completedDate: '2024-03-15' }
+        ],
+        progress: 72, status: 'Aktif'
+    },
+    {
+        id: 3, name: 'Mehmet', surname: 'Demir',
+        phone: '0534 456 7890', tcNo: '11223344556',
+        school: 'Boğaziçi Üniversitesi', department: 'İşletme',
+        unit: 'İnsan Kaynakları', startDate: '2024-01-20', endDate: '2024-07-20',
+        workingDays: ['Salı', 'Perşembe'],
+        requiredTrainings: [], progress: 90, status: 'Aktif'
+    },
+    {
+        id: 4, name: 'Ayşe', surname: 'Öztürk',
+        phone: '0535 321 0987', tcNo: '55667788990',
+        school: 'Ankara Üniversitesi', department: 'Psikoloji',
+        unit: 'İnsan Kaynakları', startDate: '2023-09-01', endDate: '2024-03-01',
+        workingDays: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'],
+        requiredTrainings: [
+            { id: 4, title: 'Dijital Pazarlama', instructor: 'Ayşe Yılmaz', duration: '35 saat', completed: true, completedDate: '2023-10-15' }
+        ],
+        progress: 100, status: 'Tamamlandı', archived: true, archivedDate: '2024-03-02'
+    }
+];
+
+let trainings = [
+    { id: 1, title: 'JavaScript Temelleri', instructor: 'Ahmet Kaya', duration: '40 saat',
+      topics: ['Değişkenler ve Veri Tipleri', 'Fonksiyonlar', 'DOM Manipülasyonu', 'Event Handling', 'Asenkron Programlama'] },
+    { id: 2, title: 'UI/UX Tasarım Prensipleri', instructor: 'Zeynep Demir', duration: '30 saat',
+      topics: ['Kullanıcı Deneyimi Temelleri', 'Wireframe ve Prototipleme', 'Renk Teorisi', 'Tipografi', 'Kullanılabilirlik Testleri'] },
+    { id: 3, title: 'Proje Yönetimi', instructor: 'Mehmet Özkan', duration: '25 saat',
+      topics: ['Proje Planlama', 'Risk Yönetimi', 'Takım Yönetimi', 'Agile Metodolojiler', 'Proje Değerlendirme'] },
+    { id: 4, title: 'Dijital Pazarlama', instructor: 'Ayşe Yılmaz', duration: '35 saat',
+      topics: ['SEO Temelleri', 'Sosyal Medya Pazarlama', 'Google Ads', 'E-mail Marketing', 'Analitik ve Raporlama'] }
+];
+
+let units = [
+    { id: 1, name: 'IT Departmanı', supervisor: 'Ahmet Kaya' },
+    { id: 2, name: 'Tasarım Departmanı', supervisor: 'Zeynep Demir' },
+    { id: 3, name: 'İnsan Kaynakları', supervisor: 'Mehmet Özkan' },
+    { id: 4, name: 'Pazarlama', supervisor: 'Ayşe Yılmaz' }
+];
+
+let schools = [
+    { id: 1, name: 'İstanbul Teknik Üniversitesi' },
+    { id: 2, name: 'Mimar Sinan Güzel Sanatlar Üniversitesi' },
+    { id: 3, name: 'Boğaziçi Üniversitesi' },
+    { id: 4, name: 'Ankara Üniversitesi' }
+];
+
+let departments = [
+    { id: 1, name: 'Bilgisayar Mühendisliği' },
+    { id: 2, name: 'Grafik Tasarım' },
+    { id: 3, name: 'İşletme' },
+    { id: 4, name: 'Psikoloji' },
+    { id: 5, name: 'Makine Mühendisliği' },
+    { id: 6, name: 'Elektrik Mühendisliği' }
+];
+
+/* ================================================================
+   TOAST
+   ================================================================ */
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    const icons = { success:'check-circle-2', error:'x-circle', info:'info', warning:'alert-triangle' };
+    toast.innerHTML = '<i data-lucide="' + (icons[type] || 'info') + '" class="w-5 h-5 flex-shrink-0"></i><span class="flex-1">' + message + '</span>';
+    container.appendChild(toast);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+        toast.classList.add('removing');
+        setTimeout(() => toast.remove(), 250);
+    }, 3200);
+}
+
+/* ================================================================
+   DARK MODE
+   ================================================================ */
+function toggleDarkMode() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('darkMode', isDark ? 'true' : 'false');
+    if (typeof renderCharts === 'function') renderCharts();
+}
+(function initDarkMode() {
+    const saved = localStorage.getItem('darkMode');
+    if (saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    }
+})();
+
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
+
+/* ================================================================
+   TAB YÖNETİMİ
+   ================================================================ */
+function showTab(tabName, event) {
+    updateAllInternProgress();
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(tabName).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.dataset.active = b.dataset.tab === tabName ? 'true' : 'false');
+    document.querySelectorAll('.tab-btn-mobile').forEach(b => b.dataset.active = b.dataset.tab === tabName ? 'true' : 'false');
+    if (tabName === 'dashboard') updateDashboard();
+    if (tabName === 'interns') loadInterns();
+    if (tabName === 'completed') loadCompletedInterns();
+    if (tabName === 'settings') { loadUnits(); loadSchools(); loadDepartments(); loadTrainings(); }
+    refreshIcons();
+}
+
+/* ================================================================
+   MODAL
+   ================================================================ */
+let lastFocusedElement = null;
+function showModal(title, content) {
+    lastFocusedElement = document.activeElement;
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalContent').innerHTML = content;
+    const modal = document.getElementById('modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    refreshIcons();
+    setTimeout(() => {
+        const fi = modal.querySelector('input, select, textarea, button');
+        if (fi) fi.focus();
+    }, 100);
+}
+function closeModal() {
+    const modal = document.getElementById('modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    if (lastFocusedElement) lastFocusedElement.focus();
+}
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        const m = document.getElementById('modal');
+        if (m && !m.classList.contains('hidden')) closeModal();
+    }
+});
+
+/* ================================================================
+   YARDIMCILAR
+   ================================================================ */
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try { return new Date(dateStr).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+    catch { return dateStr; }
+}
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+function getInitials(name, surname) {
+    return ((name || '?').charAt(0) + (surname || '').charAt(0)).toUpperCase();
+}
+
+/* ================================================================
+   İLERLEME HESABI
+   ================================================================ */
+function calculateInternProgress(intern) {
+    const startDate = new Date(intern.startDate);
+    const endDate = new Date(intern.endDate);
+    const today = new Date();
+
+    if (today > endDate) {
+        if (intern.status !== 'Tamamlandı') intern.status = 'Tamamlandı';
+        return 100;
+    }
+
+    let totalProgress = 0, factors = 0;
+
+    if (intern.requiredTrainings && intern.requiredTrainings.length > 0) {
+        const c = intern.requiredTrainings.filter(t => t.completed).length;
+        totalProgress += ((c / intern.requiredTrainings.length) * 100) * 0.4;
+        factors += 0.4;
+    }
+
+    if (today >= startDate && today <= endDate) {
+        const td = endDate - startDate;
+        const ed = today - startDate;
+        totalProgress += Math.min((ed / td) * 100, 100) * 0.3;
+        factors += 0.3;
+    } else if (today < startDate) {
+        factors += 0.3;
+    }
+
+    if (intern.unit && intern.unit !== 'Birim Atanmadı') { totalProgress += 100 * 0.2; factors += 0.2; }
+
+    if (intern.status === 'Tamamlandı') { totalProgress += 100 * 0.1; factors += 0.1; }
+    else if (intern.status === 'Aktif') { totalProgress += 50 * 0.1; factors += 0.1; }
+
+    const final = factors > 0 ? Math.round(totalProgress / factors * factors) : 0;
+    return Math.max(0, Math.min(100, final));
+}
+
+function updateAllInternProgress() {
+    let updated = false;
+    interns.forEach(i => {
+        const np = calculateInternProgress(i);
+        if (i.progress !== np) { i.progress = np; updated = true; }
+    });
+    if (updated) saveToLocalStorage();
+    return updated;
+}
+
+/* ================================================================
+   KRİTİK FONKSİYON - Eğitim almayanlar listesi
+   SADECE tüm eğitimler tamamlandığında listeden çıkar.
+   Tek eğitim tamamlanınca listeden ÇIKMAZ.
+   ================================================================ */
+function internNeedsTraining(intern) {
+    if (intern.status !== 'Aktif') return false;
+    if (intern.archived) return false;
+
+    if (!intern.requiredTrainings || intern.requiredTrainings.length === 0) return true;
+
+    const allCompleted = intern.requiredTrainings.every(t => t.completed);
+    if (allCompleted) return false;
+
+    return true;
+}
+
+/* ================================================================
+   INDEXEDDB
+   ================================================================ */
+const DB_NAME = 'InternshipTrackerDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'appData';
+const RECORD_KEY = 'mainData';
+let dbInstance = null;
+
+function openDatabase() {
+    return new Promise((resolve, reject) => {
+        if (dbInstance) { resolve(dbInstance); return; }
+        if (!window.indexedDB) { reject(new Error('IndexedDB desteklenmiyor')); return; }
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+        };
+        req.onsuccess = (e) => { dbInstance = e.target.result; resolve(dbInstance); };
+        req.onerror = (e) => reject(e.target.error || new Error('IndexedDB açılamadı'));
+    });
+}
+function idbSet(key, value) {
+    return openDatabase().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+    }));
+}
+function idbGet(key) {
+    return openDatabase().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    }));
+}
+
+let saveInFlight = false, pendingSave = false, saveDebounceTimer = null;
+
+function setSyncStatus(state) {
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    const map = {
+        saving:  { icon:'loader-2', text:'Kaydediliyor...', cls:'text-amber-500', spin:true },
+        saved:   { icon:'check-circle-2', text:'Kaydedildi', cls:'text-emerald-600', spin:false },
+        error:   { icon:'alert-circle', text:'Kayıt hatası', cls:'text-red-600', spin:false },
+        loading: { icon:'loader-2', text:'Yükleniyor...', cls:'text-brand-500', spin:true }
+    };
+    const info = map[state] || map.saved;
+    el.className = 'text-xs font-medium flex items-center gap-1.5 ' + info.cls;
+    el.innerHTML = '<i data-lucide="' + info.icon + '" class="w-3.5 h-3.5 ' + (info.spin ? 'animate-spin' : '') + '"></i>' + info.text;
+    refreshIcons();
+}
+
+function saveToLocalStorage() {
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(() => persistData(), 300);
+}
+
+async function persistData() {
+    if (saveInFlight) { pendingSave = true; return; }
+    saveInFlight = true;
+    setSyncStatus('saving');
+
+    const payload = { interns, trainings, units, schools, departments, lastUpdated: new Date().toISOString() };
+
+    try { await idbSet(RECORD_KEY, payload); }
+    catch (err) { console.error('IndexedDB kayıt hatası:', err); }
+    finally {
+        try {
+            localStorage.setItem('internshipData_backup', JSON.stringify(payload));
+            setSyncStatus('saved');
+        } catch (e) {
+            console.error('localStorage yedeği yazılamadı:', e);
+            setSyncStatus('error');
+        }
+        if (typeof connectedFileHandle !== 'undefined' && connectedFileHandle) {
+            try {
+                const granted = await verifyFilePermission(connectedFileHandle, true);
+                if (granted) await writeToFileHandle(connectedFileHandle, payload);
+            } catch (fileErr) { console.error('Bağlı dosyaya yazılamadı:', fileErr); }
+        }
+        saveInFlight = false;
+        if (pendingSave) { pendingSave = false; persistData(); }
+    }
+}
+
+async function loadFromLocalStorage() {
+    setSyncStatus('loading');
+    try {
+        const data = await idbGet(RECORD_KEY);
+        if (data) {
+            if (data.interns) interns = data.interns;
+            if (data.trainings) trainings = data.trainings;
+            if (data.units) units = data.units;
+            if (data.schools) schools = data.schools;
+            if (data.departments) departments = data.departments;
+            setSyncStatus('saved');
+            return true;
+        }
+    } catch (err) { console.error('IndexedDB yüklenemedi:', err); }
+
+    try {
+        const backup = localStorage.getItem('internshipData_backup');
+        if (backup) {
+            const data = JSON.parse(backup);
+            if (data.interns) interns = data.interns;
+            if (data.trainings) trainings = data.trainings;
+            if (data.units) units = data.units;
+            if (data.schools) schools = data.schools;
+            if (data.departments) departments = data.departments;
+            idbSet(RECORD_KEY, data).catch(() => {});
+            setSyncStatus('saved');
+            return true;
+        }
+    } catch (e) { console.error('Yedek yüklenemedi:', e); }
+
+    setSyncStatus('error');
+    return false;
+}
+</script>
+<script>
+/* ================================================================
+   DASHBOARD
+   ================================================================ */
+let unitChartInstance = null;
+let trainingChartInstance = null;
+
+function updateDashboard() {
+    const activeOnly = interns.filter(i => !i.archived);
+    const totalInterns = activeOnly.length;
+    const activeInterns = activeOnly.filter(i => i.status === 'Aktif').length;
+
+    if (!document.getElementById('completedStartFilter').value && !document.getElementById('completedEndFilter').value) {
+        setDefaultCompletedDateFilter();
+    }
+    updateCompletedStats();
+
+    document.getElementById('totalInterns').textContent = totalInterns;
+    document.getElementById('activeInterns').textContent = activeInterns;
+
+    const noTrainingInterns = activeOnly.filter(internNeedsTraining);
+
+    document.getElementById('noTrainingInterns').innerHTML = noTrainingInterns.length > 0 ?
+        noTrainingInterns.map(intern => {
+            const totalT = intern.requiredTrainings ? intern.requiredTrainings.length : 0;
+            const completedT = intern.requiredTrainings ? intern.requiredTrainings.filter(t => t.completed).length : 0;
+
+            let statusLine = '';
+            if (totalT === 0) {
+                statusLine = '<div class="text-[11px] text-red-600 dark:text-red-400 font-medium">Eğitim Atanmamış</div>';
+            } else if (completedT === 0) {
+                statusLine = '<div class="text-[11px] text-red-600 dark:text-red-400 font-medium">0/' + totalT + ' Tamamlandı</div>';
+            } else {
+                statusLine = '<div class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">' + completedT + '/' + totalT + ' Tamamlandı</div>';
+            }
+
+            return '<tr class="hover:bg-red-50/50 dark:hover:bg-red-950/20 transition">' +
+                '<td class="py-2.5 pr-2">' +
+                    '<div class="flex items-center gap-2.5">' +
+                        '<div class="w-8 h-8 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center flex-shrink-0">' +
+                            '<span class="text-red-600 dark:text-red-400 font-semibold text-[10px]">' + escapeHtml(getInitials(intern.name, intern.surname)) + '</span>' +
+                        '</div>' +
+                        '<div class="min-w-0">' +
+                            '<div class="text-sm font-medium text-slate-900 dark:text-white truncate">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">' + escapeHtml(intern.department) + '</div>' +
+                            statusLine +
+                        '</div>' +
+                    '</div>' +
+                '</td>' +
+                '<td class="py-2.5 pr-2 text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(intern.unit) + '</td>' +
+                '<td class="py-2.5 text-center">' +
+                    (totalT === 0 ?
+                        '<button onclick="assignTrainings(' + intern.id + ')" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-md text-[11px] font-medium transition inline-flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> Ata</button>'
+                        :
+                        '<button onclick="manageTrainings(' + intern.id + ')" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded-md text-[11px] font-medium transition inline-flex items-center gap-1"><i data-lucide="settings" class="w-3 h-3"></i> Yönet</button>'
+                    ) +
+                '</td>' +
+            '</tr>';
+        }).join('') : '<tr><td colspan="3" class="text-center py-6 text-slate-400 text-sm">Tüm stajyerler eğitimlerini tamamladı</td></tr>';
+
+    const today = new Date();
+    const later = new Date(); later.setDate(today.getDate() + 30);
+
+    const upcomingEndings = activeOnly.filter(intern => {
+        const endDate = new Date(intern.endDate);
+        return endDate > today && endDate <= later && intern.status === 'Aktif';
+    }).sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+    document.getElementById('upcomingEndings').innerHTML = upcomingEndings.length > 0 ?
+        upcomingEndings.map(intern => {
+            const endDate = new Date(intern.endDate);
+            const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+            const cls = daysLeft <= 7 ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                : daysLeft <= 15 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400';
+            return '<tr class="hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition">' +
+                '<td class="py-2.5 pr-2">' +
+                    '<div class="flex items-center gap-2.5">' +
+                        '<div class="w-8 h-8 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center flex-shrink-0">' +
+                            '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[10px]">' + escapeHtml(getInitials(intern.name, intern.surname)) + '</span>' +
+                        '</div>' +
+                        '<div class="min-w-0">' +
+                            '<div class="text-sm font-medium text-slate-900 dark:text-white truncate">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">' + escapeHtml(intern.department) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</td>' +
+                '<td class="py-2.5 pr-2 text-xs text-slate-600 dark:text-slate-300">' + formatDate(intern.endDate) + '</td>' +
+                '<td class="py-2.5 text-center"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ' + cls + '">' + daysLeft + ' gün</span></td>' +
+            '</tr>';
+        }).join('') : '<tr><td colspan="3" class="text-center py-6 text-slate-400 text-sm">Yaklaşan staj bitişi yok</td></tr>';
+
+    loadUnitsTable();
+    renderCharts();
+    refreshIcons();
+}
+
+function loadUnitsTable() {
+    const activeOnly = interns.filter(i => !i.archived);
+    const total = activeOnly.length;
+    const counts = {};
+    units.forEach(u => counts[u.name] = 0);
+    counts['Birim Atanmadı'] = 0;
+    activeOnly.forEach(i => { counts[i.unit] = (counts[i.unit] || 0) + 1; });
+
+    const html = Object.entries(counts).map(([name, count]) => {
+        const u = units.find(x => x.name === name);
+        const sup = u ? u.supervisor : (name === 'Birim Atanmadı' ? '-' : 'Bilinmiyor');
+        const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
+        const cls = count > 0 ? 'text-brand-600 dark:text-brand-400' : 'text-slate-300 dark:text-slate-600';
+        return '<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">' +
+            '<td class="py-2.5 pr-3 text-sm font-medium text-slate-900 dark:text-white">' + escapeHtml(name) + '</td>' +
+            '<td class="py-2.5 pr-3 text-xs text-slate-500 dark:text-slate-400">' + escapeHtml(sup) + '</td>' +
+            '<td class="py-2.5 pr-3 text-center"><span class="' + cls + ' font-semibold">' + count + '</span></td>' +
+            '<td class="py-2.5"><div class="flex items-center justify-center gap-2">' +
+                '<div class="w-14 progress-track h-1.5"><div class="progress-fill bg-brand-600" style="width:' + pct + '%"></div></div>' +
+                '<span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium tabular-nums w-9 text-right">%' + pct + '</span>' +
+            '</div></td>' +
+        '</tr>';
+    }).join('');
+
+    const el = document.getElementById('unitsTable');
+    if (el) el.innerHTML = html || '<tr><td colspan="4" class="text-center py-4 text-slate-400 text-sm">Henüz birim yok</td></tr>';
+}
+
+/* ================================================================
+   GRAFİKLER
+   ================================================================ */
+function renderCharts() {
+    if (typeof Chart === 'undefined') return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#cbd5e1' : '#475569';
+    const gridColor = isDark ? '#334155' : '#e2e8f0';
+
+    const activeOnly = interns.filter(i => !i.archived);
+    const counts = {};
+    units.forEach(u => counts[u.name] = 0);
+    activeOnly.forEach(i => { counts[i.unit] = (counts[i.unit] || 0) + 1; });
+    const labels = Object.keys(counts).filter(k => counts[k] > 0);
+    const data = labels.map(k => counts[k]);
+    const palette = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
+
+    const uc = document.getElementById('unitChart');
+    if (uc) {
+        if (unitChartInstance) unitChartInstance.destroy();
+        unitChartInstance = new Chart(uc, {
+            type: 'doughnut',
+            data: {
+                labels: labels.length ? labels : ['Veri yok'],
+                datasets: [{
+                    data: data.length ? data : [1],
+                    backgroundColor: data.length ? palette.slice(0, labels.length) : ['#e2e8f0'],
+                    borderWidth: 0, hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 }, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+                    tooltip: { backgroundColor: isDark ? '#1e293b' : '#0f172a', titleFont: { family: 'Inter', size: 12, weight: '600' }, bodyFont: { family: 'Inter', size: 11 }, padding: 10, cornerRadius: 8 }
+                }
+            }
+        });
+    }
+
+    const withT = activeOnly.filter(i => i.requiredTrainings && i.requiredTrainings.length > 0);
+    const without = activeOnly.length - withT.length;
+    const fully = withT.filter(i => i.requiredTrainings.every(t => t.completed)).length;
+    const inProg = withT.length - fully;
+
+    const tc = document.getElementById('trainingChart');
+    if (tc) {
+        if (trainingChartInstance) trainingChartInstance.destroy();
+        trainingChartInstance = new Chart(tc, {
+            type: 'bar',
+            data: {
+                labels: ['Eğitim Yok', 'Devam Ediyor', 'Tamamlandı'],
+                datasets: [{ data: [without, inProg, fully], backgroundColor: ['#dc2626', '#d97706', '#059669'], borderRadius: 8, barThickness: 42 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { backgroundColor: isDark ? '#1e293b' : '#0f172a', titleFont: { family: 'Inter', size: 12, weight: '600' }, bodyFont: { family: 'Inter', size: 11 }, padding: 10, cornerRadius: 8 }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: textColor, font: { family: 'Inter', size: 11 }, precision: 0 }, grid: { color: gridColor, drawBorder: false } },
+                    x: { ticks: { color: textColor, font: { family: 'Inter', size: 11 } }, grid: { display: false } }
+                }
+            }
+        });
+    }
+}
+
+/* ================================================================
+   COMPLETED İSTATİSTİK
+   ================================================================ */
+function toggleDateFilter() { document.getElementById('dateFilterSection').classList.toggle('hidden'); }
+function setDefaultCompletedDateFilter() {
+    const y = new Date().getFullYear();
+    document.getElementById('completedStartFilter').value = y + '-01-01';
+    document.getElementById('completedEndFilter').value = y + '-12-31';
+}
+function updateCompletedStats() {
+    const s = document.getElementById('completedStartFilter').value;
+    const e = document.getElementById('completedEndFilter').value;
+    const info = document.getElementById('dateRangeInfo');
+    const txt = document.getElementById('dateRangeText');
+    let f = interns.filter(i => i.status === 'Tamamlandı' && i.archived);
+
+    if (s || e) {
+        f = f.filter(intern => {
+            const d = new Date(intern.endDate);
+            let m = true;
+            if (s) m = m && d >= new Date(s);
+            if (e) m = m && d <= new Date(e);
+            return m;
+        });
+        info.classList.remove('hidden');
+        let t = '';
+        if (s && e) t = formatDate(s) + ' - ' + formatDate(e);
+        else if (s) t = formatDate(s) + ' sonrası';
+        else if (e) t = formatDate(e) + ' öncesi';
+        txt.textContent = t;
+    } else info.classList.add('hidden');
+
+    document.getElementById('completedInterns').textContent = f.length;
+}
+function clearCompletedDateFilter() {
+    document.getElementById('completedStartFilter').value = '';
+    document.getElementById('completedEndFilter').value = '';
+    document.getElementById('dateRangeInfo').classList.add('hidden');
+    updateCompletedStats();
+}
+
+/* ================================================================
+   INTERNS TABLOSU
+   ================================================================ */
+function loadInterns() { populateInternsFilters(); renderInterns(interns); }
+
+function populateInternsFilters() {
+    const active = interns.filter(i => !i.archived);
+    const sf = document.getElementById('internsSchoolFilter');
+    const curS = sf.value;
+    const us = [...new Set(active.map(i => i.school))].sort((a, b) => a.localeCompare(b, 'tr'));
+    sf.innerHTML = '<option value="">Tümü</option>' + us.map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join('');
+    sf.value = curS;
+
+    const uf = document.getElementById('internsUnitFilter');
+    const curU = uf.value;
+    const uu = [...new Set(active.map(i => i.unit))].sort((a, b) => a.localeCompare(b, 'tr'));
+    uf.innerHTML = '<option value="">Tümü</option>' + uu.map(u => '<option value="' + escapeHtml(u) + '">' + escapeHtml(u) + '</option>').join('');
+    uf.value = curU;
+}
+
+function filterInterns() {
+    const nf = document.getElementById('internsNameFilter').value.toLowerCase();
+    const sc = document.getElementById('internsSchoolFilter').value;
+    const un = document.getElementById('internsUnitFilter').value;
+    const st = document.getElementById('internsStatusFilter').value;
+    const sd = document.getElementById('internsStartDateFilter').value;
+    const ed = document.getElementById('internsEndDateFilter').value;
+
+    let f = interns.filter(i => !i.archived);
+    if (nf) f = f.filter(i => (i.name + ' ' + i.surname).toLowerCase().includes(nf));
+    if (sc) f = f.filter(i => i.school === sc);
+    if (un) f = f.filter(i => i.unit === un);
+    if (st) f = f.filter(i => i.status === st);
+    if (sd) f = f.filter(i => new Date(i.startDate) >= new Date(sd));
+    if (ed) f = f.filter(i => new Date(i.endDate) <= new Date(ed));
+    renderInterns(f);
+}
+
+function clearInternsFilters() {
+    ['internsNameFilter','internsSchoolFilter','internsUnitFilter','internsStatusFilter','internsStartDateFilter','internsEndDateFilter'].forEach(id => document.getElementById(id).value = '');
+    renderInterns(interns.filter(i => !i.archived));
+}
+
+function renderInterns(list) {
+    list = list.filter(i => !i.archived);
+    const c = document.getElementById('internsContainer');
+    if (list.length === 0) {
+        c.innerHTML = '<div class="text-center py-16 px-4">' +
+            '<div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">' +
+                '<i data-lucide="search-x" class="w-8 h-8 text-slate-400"></i>' +
+            '</div>' +
+            '<h3 class="text-base font-semibold text-slate-700 dark:text-slate-200 mb-1">Sonuç bulunamadı</h3>' +
+            '<p class="text-sm text-slate-500 dark:text-slate-400">Arama kriterlerinize uygun stajyer yok.</p>' +
+        '</div>';
+        refreshIcons();
+        return;
+    }
+
+    c.innerHTML = '<div class="overflow-x-auto">' +
+        '<table class="w-full min-w-max text-sm">' +
+            '<thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">' +
+                '<tr>' +
+                    '<th scope="col" class="sticky-col-1 bg-slate-50 dark:bg-slate-800/50 text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Stajyer</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">İletişim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Eğitim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dönem</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Günler</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Eğitim Durumu</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Kalan Süre</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Durum</th>' +
+                    '<th scope="col" class="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">İşlemler</th>' +
+                '</tr>' +
+            '</thead>' +
+            '<tbody class="divide-y divide-slate-100 dark:divide-slate-800">' +
+                list.map(intern => renderInternRow(intern)).join('') +
+            '</tbody>' +
+            '<tfoot class="bg-brand-50 dark:bg-brand-950/30 border-t border-brand-100 dark:border-brand-900">' +
+                '<tr><td colspan="10" class="px-4 py-4">' +
+                    '<div class="flex items-center justify-center gap-2 text-brand-800 dark:text-brand-300">' +
+                        '<i data-lucide="users" class="w-5 h-5"></i>' +
+                        '<span class="font-semibold">Toplam Aktif Stajyer:</span>' +
+                        '<span class="font-bold text-xl">' + list.length + '</span>' +
+                    '</div>' +
+                '</td></tr>' +
+            '</tfoot>' +
+        '</table>' +
+    '</div>';
+    refreshIcons();
+}
+
+function renderInternRow(intern) {
+    const ct = intern.requiredTrainings ? intern.requiredTrainings.filter(t => t.completed).length : 0;
+    const tt = intern.requiredTrainings ? intern.requiredTrainings.length : 0;
+    const tStatus = tt === 0 ? 'Eğitim Yok' : ct + '/' + tt;
+    const tCls = tt === 0 ? 'text-red-600 dark:text-red-400'
+        : ct === tt ? 'text-emerald-600 dark:text-emerald-400'
+        : 'text-amber-600 dark:text-amber-400';
+
+    const today = new Date();
+    const endDate = new Date(intern.endDate);
+    const dl = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+
+    let tb = '';
+    if (intern.status === 'Tamamlandı') {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"><i data-lucide="check" class="w-3 h-3"></i>Tamamlandı</span>';
+    } else if (dl < 0) {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"><i data-lucide="clock" class="w-3 h-3"></i>Süresi Geçti</span>';
+    } else if (dl === 0) {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400"><i data-lucide="flame" class="w-3 h-3"></i>Son Gün</span>';
+    } else if (dl <= 7) {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"><i data-lucide="alert-circle" class="w-3 h-3"></i>' + dl + ' gün</span>';
+    } else if (dl <= 30) {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"><i data-lucide="calendar" class="w-3 h-3"></i>' + dl + ' gün</span>';
+    } else {
+        tb = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400"><i data-lucide="calendar" class="w-3 h-3"></i>' + dl + ' gün</span>';
+    }
+
+    const dAbr = { 'Pazartesi':'Pzt','Salı':'Sal','Çarşamba':'Çar','Perşembe':'Per','Cuma':'Cum','Cumartesi':'Cmt','Pazar':'Paz' };
+    const wdHtml = intern.workingDays && intern.workingDays.length > 0
+        ? intern.workingDays.map(d => '<span class="inline-block bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-400 text-[10px] font-medium px-1.5 py-0.5 rounded mr-1 mb-1">' + (dAbr[d] || d) + '</span>').join('')
+        : '<span class="text-slate-400 text-xs">-</span>';
+
+    let tAction = '';
+    if (tt === 0) {
+        tAction = '<button onclick="assignTrainings(' + intern.id + ')" class="text-[11px] font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 inline-flex items-center gap-1 transition">Eğitim Ata <i data-lucide="arrow-right" class="w-3 h-3"></i></button>';
+    } else if (ct === tt) {
+        tAction = '<span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i>Tamamlandı</span>';
+    } else {
+        tAction = '<button onclick="manageTrainings(' + intern.id + ')" class="text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 inline-flex items-center gap-1 transition">Yönet <i data-lucide="arrow-right" class="w-3 h-3"></i></button>';
+    }
+
+    const sCls = intern.status === 'Aktif'
+        ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
+        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+
+    return '<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group">' +
+        '<td class="sticky-col-1 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/40 px-4 py-3">' +
+            '<div class="flex items-center gap-3">' +
+                '<div class="w-9 h-9 bg-brand-100 dark:bg-brand-900/40 rounded-full flex items-center justify-center flex-shrink-0">' +
+                    '<span class="text-brand-700 dark:text-brand-400 font-semibold text-xs">' + escapeHtml(getInitials(intern.name, intern.surname)) + '</span>' +
+                '</div>' +
+                '<div class="min-w-0">' +
+                    '<div class="font-medium text-slate-900 dark:text-white whitespace-nowrap">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</div>' +
+                    '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtml(intern.tcNo || '') + '</div>' +
+                '</div>' +
+            '</div>' +
+        '</td>' +
+        '<td class="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">' + escapeHtml(intern.phone) + '</td>' +
+        '<td class="px-4 py-3">' +
+            '<div class="text-slate-900 dark:text-white text-xs font-medium">' + escapeHtml(intern.school) + '</div>' +
+            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtml(intern.department) + '</div>' +
+        '</td>' +
+        '<td class="px-4 py-3 whitespace-nowrap">' +
+            '<div class="text-slate-900 dark:text-white text-xs font-medium">' + escapeHtml(intern.unit) + '</div>' +
+            '<button onclick="changeUnitDirect(' + intern.id + ')" class="text-[11px] text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 inline-flex items-center gap-0.5 transition">' +
+                '<i data-lucide="refresh-cw" class="w-2.5 h-2.5"></i> Değiştir' +
+            '</button>' +
+        '</td>' +
+        '<td class="px-4 py-3 whitespace-nowrap">' +
+            '<div class="text-xs text-slate-900 dark:text-white">' + formatDate(intern.startDate) + '</div>' +
+            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + formatDate(intern.endDate) + '</div>' +
+        '</td>' +
+        '<td class="px-4 py-3"><div class="flex flex-wrap max-w-[130px]">' + wdHtml + '</div></td>' +
+        '<td class="px-4 py-3 whitespace-nowrap">' +
+            '<div class="text-xs font-semibold ' + tCls + ' mb-0.5">' + tStatus + '</div>' +
+            tAction +
+        '</td>' +
+        '<td class="px-4 py-3 whitespace-nowrap text-center">' + tb + '</td>' +
+        '<td class="px-4 py-3 whitespace-nowrap">' +
+            '<span class="px-2.5 py-1 text-[11px] rounded-full font-medium ' + sCls + '">' + escapeHtml(intern.status) + '</span>' +
+        '</td>' +
+        '<td class="px-4 py-3 whitespace-nowrap text-right">' +
+            '<div class="inline-flex items-center gap-1">' +
+                '<button onclick="viewIntern(' + intern.id + ')" class="p-1.5 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-600 dark:text-brand-400 transition" title="Görüntüle"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>' +
+                (intern.status === 'Tamamlandı' ? '<button onclick="archiveIntern(' + intern.id + ')" class="p-1.5 rounded-md hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-600 dark:text-violet-400 transition" title="Arşivle"><i data-lucide="archive" class="w-3.5 h-3.5"></i></button>' : '') +
+                '<button onclick="deleteIntern(' + intern.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition" title="Sil"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+            '</div>' +
+        '</td>' +
+    '</tr>';
+}
+
+/* ================================================================
+   COMPLETED TABLOSU
+   ================================================================ */
+function loadCompletedInterns() {
+    populateCompletedFilters();
+    renderCompletedInterns(interns.filter(i => i.status === 'Tamamlandı' && i.archived));
+}
+
+function populateCompletedFilters() {
+    const c = interns.filter(i => i.status === 'Tamamlandı' && i.archived);
+    const sf = document.getElementById('completedSchoolFilter');
+    const us = [...new Set(c.map(i => i.school))].sort((a, b) => a.localeCompare(b, 'tr'));
+    sf.innerHTML = '<option value="">Tümü</option>' + us.map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join('');
+
+    const uf = document.getElementById('completedUnitFilter');
+    const uu = [...new Set(c.map(i => i.unit))].sort((a, b) => a.localeCompare(b, 'tr'));
+    uf.innerHTML = '<option value="">Tümü</option>' + uu.map(u => '<option value="' + escapeHtml(u) + '">' + escapeHtml(u) + '</option>').join('');
+}
+
+function filterCompletedInterns() {
+    const nf = document.getElementById('completedNameFilter').value.toLowerCase();
+    const sc = document.getElementById('completedSchoolFilter').value;
+    const un = document.getElementById('completedUnitFilter').value;
+    const sd = document.getElementById('completedStartDateFilter').value;
+    const ed = document.getElementById('completedEndDateFilter').value;
+    let f = interns.filter(i => i.status === 'Tamamlandı' && i.archived);
+    if (nf) f = f.filter(i => (i.name + ' ' + i.surname).toLowerCase().includes(nf));
+    if (sc) f = f.filter(i => i.school === sc);
+    if (un) f = f.filter(i => i.unit === un);
+    if (sd) f = f.filter(i => new Date(i.startDate) >= new Date(sd));
+    if (ed) f = f.filter(i => new Date(i.endDate) <= new Date(ed));
+    renderCompletedInterns(f);
+}
+
+function clearCompletedFilters() {
+    ['completedNameFilter','completedSchoolFilter','completedUnitFilter','completedStartDateFilter','completedEndDateFilter'].forEach(id => document.getElementById(id).value = '');
+    renderCompletedInterns(interns.filter(i => i.status === 'Tamamlandı' && i.archived));
+}
+
+function renderCompletedInterns(list) {
+    const c = document.getElementById('completedContainer');
+    if (list.length === 0) {
+        c.innerHTML = '<div class="text-center py-16 px-4">' +
+            '<div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">' +
+                '<i data-lucide="archive-x" class="w-8 h-8 text-slate-400"></i>' +
+            '</div>' +
+            '<h3 class="text-base font-semibold text-slate-700 dark:text-slate-200 mb-1">Kayıt yok</h3>' +
+            '<p class="text-sm text-slate-500 dark:text-slate-400">Arama kriterlerinize uygun tamamlanmış stajyer yok.</p>' +
+        '</div>';
+        refreshIcons();
+        return;
+    }
+
+    c.innerHTML = '<div class="overflow-x-auto">' +
+        '<table class="w-full min-w-max text-sm">' +
+            '<thead class="bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900">' +
+                '<tr>' +
+                    '<th scope="col" class="sticky-col-1 bg-emerald-50 dark:bg-emerald-950/30 text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Stajyer</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">İletişim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Eğitim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Birim</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Dönem</th>' +
+                    '<th scope="col" class="text-left px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Arşiv Tarihi</th>' +
+                    '<th scope="col" class="text-right px-4 py-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">İşlemler</th>' +
+                '</tr>' +
+            '</thead>' +
+            '<tbody class="divide-y divide-slate-100 dark:divide-slate-800">' +
+                list.map(intern => {
+                    const u = units.find(x => x.name === intern.unit);
+                    const sup = u ? u.supervisor : 'Belirtilmemiş';
+                    const sD = new Date(intern.startDate);
+                    const eD = new Date(intern.endDate);
+                    const dur = Math.ceil((eD - sD) / (1000 * 60 * 60 * 24));
+                    return '<tr class="hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition group">' +
+                        '<td class="sticky-col-1 bg-white dark:bg-slate-900 group-hover:bg-emerald-50/50 dark:group-hover:bg-emerald-950/20 px-4 py-3">' +
+                            '<div class="flex items-center gap-3">' +
+                                '<div class="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center flex-shrink-0">' +
+                                    '<span class="text-emerald-700 dark:text-emerald-400 font-semibold text-xs">' + escapeHtml(getInitials(intern.name, intern.surname)) + '</span>' +
+                                '</div>' +
+                                '<div>' +
+                                    '<div class="font-medium text-slate-900 dark:text-white whitespace-nowrap">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</div>' +
+                                    '<div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-2.5 h-2.5"></i>Tamamlandı</div>' +
+                                '</div>' +
+                            '</div>' +
+                        '</td>' +
+                        '<td class="px-4 py-3 whitespace-nowrap">' +
+                            '<div class="text-xs text-slate-900 dark:text-white">' + escapeHtml(intern.phone) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtml(intern.tcNo || '') + '</div>' +
+                        '</td>' +
+                        '<td class="px-4 py-3">' +
+                            '<div class="text-xs text-slate-900 dark:text-white font-medium">' + escapeHtml(intern.school) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtml(intern.department) + '</div>' +
+                        '</td>' +
+                        '<td class="px-4 py-3 whitespace-nowrap">' +
+                            '<div class="text-xs text-slate-900 dark:text-white font-medium">' + escapeHtml(intern.unit) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400">Sorumlu: ' + escapeHtml(sup) + '</div>' +
+                        '</td>' +
+                        '<td class="px-4 py-3 whitespace-nowrap">' +
+                            '<div class="text-xs text-slate-900 dark:text-white">' + formatDate(intern.startDate) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + formatDate(intern.endDate) + '</div>' +
+                            '<div class="text-[10px] text-slate-400">' + dur + ' gün</div>' +
+                        '</td>' +
+                        '<td class="px-4 py-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">' +
+                            (intern.archivedDate ? formatDate(intern.archivedDate) : '-') +
+                        '</td>' +
+                        '<td class="px-4 py-3 whitespace-nowrap text-right">' +
+                            '<div class="inline-flex items-center gap-1">' +
+                                '<button onclick="viewCompletedIntern(' + intern.id + ')" class="p-1.5 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-600 dark:text-brand-400 transition" title="Görüntüle"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>' +
+                                '<button onclick="deleteCompletedIntern(' + intern.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition" title="Sil"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+                            '</div>' +
+                        '</td>' +
+                    '</tr>';
+                }).join('') +
+            '</tbody>' +
+            '<tfoot class="bg-emerald-100 dark:bg-emerald-950/40 border-t border-emerald-200 dark:border-emerald-900">' +
+                '<tr><td colspan="7" class="px-4 py-4">' +
+                    '<div class="flex items-center justify-center gap-2 text-emerald-800 dark:text-emerald-300">' +
+                        '<i data-lucide="check-circle-2" class="w-5 h-5"></i>' +
+                        '<span class="font-semibold">Toplam Tamamlanan:</span>' +
+                        '<span class="font-bold text-xl">' + list.length + '</span>' +
+                    '</div>' +
+                '</td></tr>' +
+            '</tfoot>' +
+        '</table>' +
+    '</div>';
+    refreshIcons();
+}
+
+/* ================================================================
+   SETTINGS DROPDOWN
+   ================================================================ */
+function _toggle(ddId, colId, iconId) {
+    const dd = document.getElementById(ddId);
+    const col = document.getElementById(colId);
+    const icon = document.getElementById(iconId);
+    const h = dd.classList.contains('hidden');
+    dd.classList.toggle('hidden', !h);
+    col.classList.toggle('hidden', h);
+    icon.style.transform = h ? 'rotate(180deg)' : 'rotate(0)';
+}
+function toggleUnitsDropdown() { _toggle('unitsDropdown','unitsCollapsed','unitsToggleIcon'); }
+function toggleSchoolsDropdown() { _toggle('schoolsDropdown','schoolsCollapsed','schoolsToggleIcon'); }
+function toggleDepartmentsDropdown() { _toggle('departmentsDropdown','departmentsCollapsed','departmentsToggleIcon'); }
+function toggleTrainingsDropdown() { _toggle('trainingsDropdown','trainingsCollapsed','trainingsToggleIcon'); }
+
+function loadUnits() {
+    document.getElementById('unitsCount').textContent = units.length;
+    document.getElementById('unitsContainer').innerHTML = units.map(u =>
+        '<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700/50">' +
+            '<div class="min-w-0 flex-1">' +
+                '<div class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">' + escapeHtml(u.name) + '</div>' +
+                '<div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">Sorumlu: ' + escapeHtml(u.supervisor) + '</div>' +
+            '</div>' +
+            '<div class="flex gap-1 flex-shrink-0 ml-2">' +
+                '<button onclick="editUnit(' + u.id + ')" class="p-1.5 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-400 transition"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
+                '<button onclick="deleteUnit(' + u.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+            '</div>' +
+        '</div>'
+    ).join('') || '<p class="text-sm text-slate-400 text-center py-3">Kayıt yok</p>';
+    refreshIcons();
+}
+
+function loadSchools() {
+    document.getElementById('schoolsCount').textContent = schools.length;
+    document.getElementById('schoolsContainer').innerHTML = schools.map(s =>
+        '<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700/50">' +
+            '<span class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate flex-1">' + escapeHtml(s.name) + '</span>' +
+            '<div class="flex gap-1 flex-shrink-0 ml-2">' +
+                '<button onclick="editSchool(' + s.id + ')" class="p-1.5 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-600 dark:text-brand-400 transition"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
+                '<button onclick="deleteSchool(' + s.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+            '</div>' +
+        '</div>'
+    ).join('') || '<p class="text-sm text-slate-400 text-center py-3">Kayıt yok</p>';
+    refreshIcons();
+}
+
+function loadDepartments() {
+    document.getElementById('departmentsCount').textContent = departments.length;
+    document.getElementById('departmentsContainer').innerHTML = departments.map(d =>
+        '<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700/50">' +
+            '<span class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate flex-1">' + escapeHtml(d.name) + '</span>' +
+            '<div class="flex gap-1 flex-shrink-0 ml-2">' +
+                '<button onclick="editDepartment(' + d.id + ')" class="p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 transition"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
+                '<button onclick="deleteDepartment(' + d.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+            '</div>' +
+        '</div>'
+    ).join('') || '<p class="text-sm text-slate-400 text-center py-3">Kayıt yok</p>';
+    refreshIcons();
+}
+
+function loadTrainings() {
+    document.getElementById('trainingsCount').textContent = trainings.length;
+    document.getElementById('trainingsContainer').innerHTML = trainings.map(t =>
+        '<div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700/50">' +
+            '<div class="flex items-start justify-between gap-2">' +
+                '<div class="min-w-0 flex-1">' +
+                    '<div class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">' + escapeHtml(t.title) + '</div>' +
+                    '<div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">' + escapeHtml(t.instructor) + ' • ' + escapeHtml(t.duration) + '</div>' +
+                    (t.topics && t.topics.length > 0 ? '<div class="text-[10px] text-brand-600 dark:text-brand-400 mt-1 line-clamp-2">' + escapeHtml(t.topics.slice(0,3).join(', ')) + (t.topics.length > 3 ? '...' : '') + '</div>' : '') +
+                '</div>' +
+                '<div class="flex gap-1 flex-shrink-0">' +
+                    '<button onclick="viewTraining(' + t.id + ')" class="p-1.5 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-600 dark:text-brand-400 transition"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>' +
+                    '<button onclick="editTraining(' + t.id + ')" class="p-1.5 rounded-md hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-600 dark:text-violet-400 transition"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
+                    '<button onclick="deleteTraining(' + t.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+                '</div>' +
+            '</div>' +
+        '</div>'
+    ).join('') || '<p class="text-sm text-slate-400 text-center py-3">Kayıt yok</p>';
+    refreshIcons();
+}
+</script>
+<script>
+/* ================================================================
+   MODAL FORMLARI - EKLE
+   ================================================================ */
+function addIntern() {
+    showModal('Yeni Stajyer Kaydı',
+        '<form onsubmit="saveIntern(event)" class="space-y-4">' +
+            '<div class="grid grid-cols-2 gap-3">' +
+                '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Ad</label>' +
+                '<input type="text" id="internName" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+                '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Soyad</label>' +
+                '<input type="text" id="internSurname" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '</div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Telefon</label>' +
+            '<input type="tel" id="internPhone" placeholder="0532 123 4567" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">TC Kimlik No</label>' +
+            '<input type="text" id="internTcNo" placeholder="11 haneli" maxlength="11" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Okul</label>' +
+            '<select id="internSchool" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required>' +
+                '<option value="">Seçiniz</option>' + schools.map(s => '<option value="' + escapeHtml(s.name) + '">' + escapeHtml(s.name) + '</option>').join('') +
+            '</select></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Bölüm</label>' +
+            '<select id="internDepartment" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required>' +
+                '<option value="">Seçiniz</option>' + departments.map(d => '<option value="' + escapeHtml(d.name) + '">' + escapeHtml(d.name) + '</option>').join('') +
+            '</select></div>' +
+            '<div class="grid grid-cols-2 gap-3">' +
+                '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Başlangıç</label>' +
+                '<input type="date" id="internStartDate" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+                '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Bitiş</label>' +
+                '<input type="date" id="internEndDate" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Çalışma Günleri</label>' +
+                '<div class="grid grid-cols-4 gap-2">' +
+                    ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'].map((d, i) =>
+                        '<label class="flex items-center gap-1.5 p-2 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 text-xs">' +
+                            '<input type="checkbox" id="day_' + i + '" value="' + d + '"' + (i < 5 ? ' checked' : '') + ' class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">' +
+                            '<span class="text-slate-700 dark:text-slate-300">' + d.slice(0,3) + '</span>' +
+                        '</label>'
+                    ).join('') +
+                '</div>' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Alması Gereken Eğitimler</label>' +
+                '<div class="border border-slate-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50 dark:bg-slate-800/40">' +
+                    trainings.map(t =>
+                        '<label class="flex items-start gap-2 py-1.5 cursor-pointer">' +
+                            '<input type="checkbox" id="training_' + t.id + '" value="' + t.id + '" class="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500">' +
+                            '<span class="text-xs text-slate-700 dark:text-slate-300 leading-tight">' +
+                                '<strong>' + escapeHtml(t.title) + '</strong>' +
+                                '<span class="text-slate-500 dark:text-slate-400"> — ' + escapeHtml(t.instructor) + ' • ' + escapeHtml(t.duration) + '</span>' +
+                            '</span>' +
+                        '</label>'
+                    ).join('') +
+                '</div>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium transition text-sm">Kaydet</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium transition text-sm">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function addUnit() {
+    showModal('Yeni Birim Ekle',
+        '<form onsubmit="saveUnit(event)" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Birim Adı</label>' +
+            '<input type="text" id="unitName" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Sorumlu</label>' +
+            '<input type="text" id="unitSupervisor" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Kaydet</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function addSchool() {
+    showModal('Yeni Okul Ekle',
+        '<form onsubmit="saveSchool(event)" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Okul Adı</label>' +
+            '<input type="text" id="schoolName" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Kaydet</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function addDepartment() {
+    showModal('Yeni Bölüm Ekle',
+        '<form onsubmit="saveDepartment(event)" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Bölüm Adı</label>' +
+            '<input type="text" id="departmentName" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Kaydet</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function addTraining() {
+    showModal('Yeni Eğitim Ekle',
+        '<form onsubmit="saveTraining(event)" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Eğitim Adı</label>' +
+            '<input type="text" id="trainingTitle" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Eğitim Veren</label>' +
+            '<input type="text" id="trainingInstructor" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Süre</label>' +
+            '<input type="text" id="trainingDuration" placeholder="örn: 40 saat" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Konular</label>' +
+                '<div id="topicsContainer" class="space-y-2">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<input type="text" class="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" placeholder="Konu başlığı..." name="topic">' +
+                        '<button type="button" onclick="removeTopicField(this)" class="p-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
+                    '</div>' +
+                '</div>' +
+                '<button type="button" onclick="addTopicField()" class="mt-2 text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 text-xs font-medium inline-flex items-center gap-1 transition">' +
+                    '<i data-lucide="plus" class="w-3.5 h-3.5"></i> Konu Ekle' +
+                '</button>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Kaydet</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function addTopicField() {
+    const c = document.getElementById('topicsContainer');
+    const d = document.createElement('div');
+    d.className = 'flex items-center gap-2';
+    d.innerHTML = '<input type="text" class="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" placeholder="Konu başlığı..." name="topic">' +
+        '<button type="button" onclick="removeTopicField(this)" class="p-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>';
+    c.appendChild(d);
+    refreshIcons();
+}
+function removeTopicField(btn) {
+    const c = document.getElementById('topicsContainer');
+    if (c.children.length > 1) btn.parentElement.remove();
+    else showToast('En az bir konu alanı olmalı', 'warning');
+}
+
+/* ================================================================
+   KAYDETME
+   ================================================================ */
+function saveIntern(e) {
+    e.preventDefault();
+    const selT = [];
+    trainings.forEach(t => {
+        const cb = document.getElementById('training_' + t.id);
+        if (cb && cb.checked) selT.push({ id: t.id, title: t.title, instructor: t.instructor, duration: t.duration, completed: false, completedDate: null });
+    });
+    const selD = [];
+    ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'].forEach((d, i) => {
+        const cb = document.getElementById('day_' + i);
+        if (cb && cb.checked) selD.push(d);
+    });
+
+    const newIntern = {
+        id: interns.length ? Math.max(...interns.map(i => i.id)) + 1 : 1,
+        name: document.getElementById('internName').value.trim(),
+        surname: document.getElementById('internSurname').value.trim(),
+        phone: document.getElementById('internPhone').value.trim(),
+        tcNo: document.getElementById('internTcNo').value.trim(),
+        school: document.getElementById('internSchool').value,
+        department: document.getElementById('internDepartment').value,
+        unit: 'Birim Atanmadı',
+        startDate: document.getElementById('internStartDate').value,
+        endDate: document.getElementById('internEndDate').value,
+        workingDays: selD,
+        requiredTrainings: selT,
+        progress: 0, status: 'Aktif', archived: false
+    };
+    interns.push(newIntern);
+    saveToLocalStorage();
+    closeModal();
+    showToast(newIntern.name + ' ' + newIntern.surname + ' eklendi', 'success');
+    updateAllTables();
+}
+
+function saveUnit(e) {
+    e.preventDefault();
+    units.push({
+        id: units.length ? Math.max(...units.map(u => u.id)) + 1 : 1,
+        name: document.getElementById('unitName').value.trim(),
+        supervisor: document.getElementById('unitSupervisor').value.trim()
+    });
+    units.sort((a, b) => a.name.localeCompare(b.name, 'tr', { sensitivity: 'base' }));
+    saveToLocalStorage(); loadUnits(); closeModal();
+    showToast('Birim eklendi', 'success'); updateDashboard();
+}
+function saveSchool(e) {
+    e.preventDefault();
+    schools.push({
+        id: schools.length ? Math.max(...schools.map(s => s.id)) + 1 : 1,
+        name: document.getElementById('schoolName').value.trim()
+    });
+    schools.sort((a, b) => a.name.localeCompare(b.name, 'tr', { sensitivity: 'base' }));
+    saveToLocalStorage(); loadSchools(); closeModal(); showToast('Okul eklendi', 'success');
+}
+function saveDepartment(e) {
+    e.preventDefault();
+    departments.push({
+        id: departments.length ? Math.max(...departments.map(d => d.id)) + 1 : 1,
+        name: document.getElementById('departmentName').value.trim()
+    });
+    departments.sort((a, b) => a.name.localeCompare(b.name, 'tr', { sensitivity: 'base' }));
+    saveToLocalStorage(); loadDepartments(); closeModal(); showToast('Bölüm eklendi', 'success');
+}
+function saveTraining(e) {
+    e.preventDefault();
+    const topics = [];
+    document.querySelectorAll('input[name="topic"]').forEach(i => { if (i.value.trim()) topics.push(i.value.trim()); });
+    trainings.push({
+        id: trainings.length ? Math.max(...trainings.map(t => t.id)) + 1 : 1,
+        title: document.getElementById('trainingTitle').value.trim(),
+        instructor: document.getElementById('trainingInstructor').value.trim(),
+        duration: document.getElementById('trainingDuration').value.trim(),
+        topics
+    });
+    trainings.sort((a, b) => a.title.localeCompare(b.title, 'tr', { sensitivity: 'base' }));
+    saveToLocalStorage(); loadTrainings(); closeModal(); showToast('Eğitim eklendi', 'success');
+}
+
+/* ================================================================
+   SİL / ARŞİV
+   ================================================================ */
+function deleteIntern(id) {
+    const i = interns.find(x => x.id === id);
+    if (!confirm(i.name + ' ' + i.surname + ' adlı stajyeri silmek istediğinize emin misiniz?')) return;
+    interns.splice(interns.findIndex(x => x.id === id), 1);
+    saveToLocalStorage(); showToast('Stajyer silindi', 'success');
+    filterInterns(); updateDashboard();
+}
+function archiveIntern(id) {
+    const i = interns.find(x => x.id === id);
+    if (!confirm(i.name + ' ' + i.surname + ' arşivlensin mi?')) return;
+    i.archived = true;
+    i.archivedDate = new Date().toISOString().split('T')[0];
+    saveToLocalStorage(); showToast('Arşivlendi', 'success');
+    filterInterns(); updateDashboard();
+}
+function deleteCompletedIntern(id) {
+    const i = interns.find(x => x.id === id);
+    if (!confirm(i.name + ' ' + i.surname + ' kaydı silinsin mi?')) return;
+    interns.splice(interns.findIndex(x => x.id === id), 1);
+    saveToLocalStorage(); showToast('Kayıt silindi', 'success');
+    filterCompletedInterns(); updateDashboard();
+}
+function deleteUnit(id) {
+    if (!confirm('Birim silinsin mi?')) return;
+    units.splice(units.findIndex(u => u.id === id), 1);
+    saveToLocalStorage(); loadUnits(); showToast('Birim silindi', 'success'); updateDashboard();
+}
+function deleteSchool(id) {
+    if (!confirm('Okul silinsin mi?')) return;
+    schools.splice(schools.findIndex(s => s.id === id), 1);
+    saveToLocalStorage(); loadSchools(); showToast('Okul silindi', 'success');
+}
+function deleteDepartment(id) {
+    if (!confirm('Bölüm silinsin mi?')) return;
+    departments.splice(departments.findIndex(d => d.id === id), 1);
+    saveToLocalStorage(); loadDepartments(); showToast('Bölüm silindi', 'success');
+}
+function deleteTraining(id) {
+    if (!confirm('Eğitim silinsin mi?')) return;
+    trainings.splice(trainings.findIndex(t => t.id === id), 1);
+    saveToLocalStorage(); loadTrainings(); showToast('Eğitim silindi', 'success');
+}
+
+/* ================================================================
+   DÜZENLE
+   ================================================================ */
+function editUnit(id) {
+    const u = units.find(x => x.id === id);
+    showModal('Birim Düzenle',
+        '<form onsubmit="updateUnit(event, ' + id + ')" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Birim Adı</label>' +
+            '<input type="text" id="editUnitName" value="' + escapeHtml(u.name) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Sorumlu</label>' +
+            '<input type="text" id="editUnitSupervisor" value="' + escapeHtml(u.supervisor) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Güncelle</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+function updateUnit(e, id) {
+    e.preventDefault();
+    const u = units.find(x => x.id === id);
+    u.name = document.getElementById('editUnitName').value.trim();
+    u.supervisor = document.getElementById('editUnitSupervisor').value.trim();
+    saveToLocalStorage(); loadUnits(); closeModal(); showToast('Birim güncellendi', 'success'); updateDashboard();
+}
+function editSchool(id) {
+    const s = schools.find(x => x.id === id);
+    showModal('Okul Düzenle',
+        '<form onsubmit="updateSchool(event, ' + id + ')" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Okul Adı</label>' +
+            '<input type="text" id="editSchoolName" value="' + escapeHtml(s.name) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Güncelle</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+function updateSchool(e, id) {
+    e.preventDefault();
+    schools.find(x => x.id === id).name = document.getElementById('editSchoolName').value.trim();
+    saveToLocalStorage(); loadSchools(); closeModal(); showToast('Okul güncellendi', 'success');
+}
+function editDepartment(id) {
+    const d = departments.find(x => x.id === id);
+    showModal('Bölüm Düzenle',
+        '<form onsubmit="updateDepartment(event, ' + id + ')" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Bölüm Adı</label>' +
+            '<input type="text" id="editDepartmentName" value="' + escapeHtml(d.name) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Güncelle</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+function updateDepartment(e, id) {
+    e.preventDefault();
+    departments.find(x => x.id === id).name = document.getElementById('editDepartmentName').value.trim();
+    saveToLocalStorage(); loadDepartments(); closeModal(); showToast('Bölüm güncellendi', 'success');
+}
+function editTraining(id) {
+    const t = trainings.find(x => x.id === id);
+    showModal('Eğitim Düzenle',
+        '<form onsubmit="updateTraining(event, ' + id + ')" class="space-y-4">' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Eğitim Adı</label>' +
+            '<input type="text" id="editTrainingTitle" value="' + escapeHtml(t.title) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Eğitim Veren</label>' +
+            '<input type="text" id="editTrainingInstructor" value="' + escapeHtml(t.instructor) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div><label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Süre</label>' +
+            '<input type="text" id="editTrainingDuration" value="' + escapeHtml(t.duration) + '" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required></div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Güncelle</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+function updateTraining(e, id) {
+    e.preventDefault();
+    const t = trainings.find(x => x.id === id);
+    t.title = document.getElementById('editTrainingTitle').value.trim();
+    t.instructor = document.getElementById('editTrainingInstructor').value.trim();
+    t.duration = document.getElementById('editTrainingDuration').value.trim();
+    saveToLocalStorage(); loadTrainings(); closeModal(); showToast('Eğitim güncellendi', 'success');
+}
+
+/* ================================================================
+   VIEW (Görüntüle)
+   ================================================================ */
+function viewIntern(id) {
+    const i = interns.find(x => x.id === id);
+    showModal('Stajyer Detayları',
+        '<div class="space-y-4">' +
+            '<div class="flex items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">' +
+                '<div class="w-14 h-14 bg-brand-100 dark:bg-brand-900/40 rounded-2xl flex items-center justify-center">' +
+                    '<span class="text-brand-700 dark:text-brand-400 font-bold text-lg">' + escapeHtml(getInitials(i.name, i.surname)) + '</span>' +
+                '</div>' +
+                '<div><h3 class="font-bold text-slate-900 dark:text-white text-lg">' + escapeHtml(i.name) + ' ' + escapeHtml(i.surname) + '</h3>' +
+                '<p class="text-sm text-slate-500 dark:text-slate-400">' + escapeHtml(i.department) + '</p></div>' +
+            '</div>' +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">İletişim</h4>' +
+                    '<p class="text-sm"><strong>Telefon:</strong> ' + escapeHtml(i.phone) + '</p>' +
+                    '<p class="text-sm"><strong>TC:</strong> ' + escapeHtml(i.tcNo || '-') + '</p>' +
+                '</div>' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Eğitim</h4>' +
+                    '<p class="text-sm"><strong>Okul:</strong> ' + escapeHtml(i.school) + '</p>' +
+                    '<p class="text-sm"><strong>Bölüm:</strong> ' + escapeHtml(i.department) + '</p>' +
+                '</div>' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Staj</h4>' +
+                    '<p class="text-sm"><strong>Birim:</strong> ' + escapeHtml(i.unit) + '</p>' +
+                    '<p class="text-sm"><strong>Başlangıç:</strong> ' + formatDate(i.startDate) + '</p>' +
+                    '<p class="text-sm"><strong>Bitiş:</strong> ' + formatDate(i.endDate) + '</p>' +
+                '</div>' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">İlerleme</h4>' +
+                    '<p class="text-sm"><strong>Durum:</strong> ' + escapeHtml(i.status) + '</p>' +
+                    '<div class="progress-track h-2 mt-2"><div class="progress-fill bg-brand-600" style="width:' + i.progress + '%"></div></div>' +
+                    '<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">%' + i.progress + ' tamamlandı</p>' +
+                '</div>' +
+            '</div>' +
+            '<button onclick="closeModal()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium transition text-sm">Kapat</button>' +
+        '</div>'
+    );
+}
+
+function viewCompletedIntern(id) {
+    const i = interns.find(x => x.id === id);
+    const u = units.find(x => x.name === i.unit);
+    const sup = u ? u.supervisor : 'Belirtilmemiş';
+    showModal('Tamamlanan Stajyer',
+        '<div class="space-y-4">' +
+            '<div class="flex items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">' +
+                '<div class="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/40 rounded-2xl flex items-center justify-center">' +
+                    '<span class="text-emerald-700 dark:text-emerald-400 font-bold text-lg">' + escapeHtml(getInitials(i.name, i.surname)) + '</span>' +
+                '</div>' +
+                '<div><h3 class="font-bold text-slate-900 dark:text-white text-lg">' + escapeHtml(i.name) + ' ' + escapeHtml(i.surname) + '</h3>' +
+                '<p class="text-sm text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Tamamlandı</p></div>' +
+            '</div>' +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">İletişim</h4>' +
+                    '<p class="text-sm"><strong>Telefon:</strong> ' + escapeHtml(i.phone) + '</p>' +
+                    '<p class="text-sm"><strong>TC:</strong> ' + escapeHtml(i.tcNo || '-') + '</p>' +
+                '</div>' +
+                '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                    '<h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Eğitim</h4>' +
+                    '<p class="text-sm"><strong>Okul:</strong> ' + escapeHtml(i.school) + '</p>' +
+                    '<p class="text-sm"><strong>Bölüm:</strong> ' + escapeHtml(i.department) + '</p>' +
+                '</div>' +
+                '<div class="bg-emerald-50 dark:bg-emerald-950/30 p-3.5 rounded-lg border border-emerald-100 dark:border-emerald-900">' +
+                    '<h4 class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase mb-2">Staj</h4>' +
+                    '<p class="text-sm"><strong>Birim:</strong> ' + escapeHtml(i.unit) + '</p>' +
+                    '<p class="text-sm"><strong>Sorumlu:</strong> ' + escapeHtml(sup) + '</p>' +
+                    '<p class="text-sm"><strong>Başlangıç:</strong> ' + formatDate(i.startDate) + '</p>' +
+                    '<p class="text-sm"><strong>Bitiş:</strong> ' + formatDate(i.endDate) + '</p>' +
+                    '<p class="text-sm"><strong>Arşiv:</strong> ' + (i.archivedDate ? formatDate(i.archivedDate) : '-') + '</p>' +
+                '</div>' +
+                '<div class="bg-emerald-50 dark:bg-emerald-950/30 p-3.5 rounded-lg border border-emerald-100 dark:border-emerald-900">' +
+                    '<h4 class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase mb-2">İlerleme</h4>' +
+                    '<div class="progress-track h-2 mt-2"><div class="progress-fill bg-emerald-600" style="width:' + i.progress + '%"></div></div>' +
+                    '<p class="text-xs text-emerald-700 dark:text-emerald-400 mt-2 font-medium">%' + i.progress + ' tamamlandı</p>' +
+                '</div>' +
+            '</div>' +
+            '<button onclick="closeModal()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium transition text-sm">Kapat</button>' +
+        '</div>'
+    );
+}
+
+function viewTraining(id) {
+    const t = trainings.find(x => x.id === id);
+    showModal('Eğitim Detayları',
+        '<div class="space-y-4">' +
+            '<div class="bg-violet-50 dark:bg-violet-950/30 p-4 rounded-xl border border-violet-100 dark:border-violet-900">' +
+                '<h4 class="font-bold text-violet-800 dark:text-violet-300 text-base mb-2">' + escapeHtml(t.title) + '</h4>' +
+                '<div class="grid grid-cols-2 gap-3 text-sm">' +
+                    '<div><span class="text-xs text-violet-600 dark:text-violet-400 font-medium">Eğitim Veren</span>' +
+                    '<p class="text-violet-700 dark:text-violet-300">' + escapeHtml(t.instructor) + '</p></div>' +
+                    '<div><span class="text-xs text-violet-600 dark:text-violet-400 font-medium">Süre</span>' +
+                    '<p class="text-violet-700 dark:text-violet-300">' + escapeHtml(t.duration) + '</p></div>' +
+                '</div>' +
+            '</div>' +
+            (t.topics && t.topics.length > 0 ?
+                '<div class="bg-brand-50 dark:bg-brand-950/30 p-4 rounded-xl border border-brand-100 dark:border-brand-900">' +
+                    '<h5 class="text-xs font-bold text-brand-800 dark:text-brand-300 uppercase mb-3">Konular</h5>' +
+                    '<div class="space-y-2">' +
+                        t.topics.map((tp, i) =>
+                            '<div class="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border border-brand-100 dark:border-brand-900">' +
+                                '<span class="bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">' + (i+1) + '</span>' +
+                                '<span class="text-sm text-brand-700 dark:text-brand-300">' + escapeHtml(tp) + '</span>' +
+                            '</div>'
+                        ).join('') +
+                    '</div>' +
+                '</div>'
+                : '<p class="text-center text-sm text-slate-400 py-4">Konu tanımlanmamış</p>'
+            ) +
+            '<button onclick="closeModal()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium transition text-sm">Kapat</button>' +
+        '</div>'
+    );
+}
+
+/* ================================================================
+   EĞİTİM YÖNETİMİ
+   ================================================================ */
+function manageTrainings(internId) {
+    const intern = interns.find(x => x.id === internId);
+    showModal('Eğitim Yönetimi',
+        '<div class="space-y-4">' +
+            '<div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">' +
+                '<h4 class="font-medium text-slate-800 dark:text-slate-200 mb-1">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</h4>' +
+                '<p class="text-sm text-slate-500 dark:text-slate-400">' + escapeHtml(intern.department) + ' • ' + escapeHtml(intern.unit) + '</p>' +
+            '</div>' +
+            '<div class="space-y-2">' +
+                intern.requiredTrainings.map(t =>
+                    '<div class="flex items-center justify-between gap-2 p-3 rounded-lg border ' + (t.completed ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900') + '">' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<div class="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">' + escapeHtml(t.title) + '</div>' +
+                            '<div class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtml(t.instructor) + ' • ' + escapeHtml(t.duration) + '</div>' +
+                            (t.completed ? '<div class="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 inline-flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i>' + formatDate(t.completedDate) + '</div>' : '') +
+                        '</div>' +
+                        '<div class="flex gap-1 flex-shrink-0">' +
+                            (!t.completed ?
+                                '<button onclick="markTrainingCompleted(' + internId + ', ' + t.id + ')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md text-[11px] font-medium transition">Tamamla</button>'
+                                :
+                                '<button onclick="markTrainingIncomplete(' + internId + ', ' + t.id + ')" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded-md text-[11px] font-medium transition">Geri Al</button>'
+                            ) +
+                            '<button onclick="removeTraining(' + internId + ', ' + t.id + ')" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition" title="Kaldır"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>' +
+                        '</div>' +
+                    '</div>'
+                ).join('') +
+            '</div>' +
+            '<div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">' +
+                '<button onclick="closeModal(); setTimeout(function(){ assignTrainings(' + internId + '); }, 150);" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition inline-flex items-center justify-center gap-1.5">' +
+                    '<i data-lucide="plus" class="w-4 h-4"></i> Yeni Eğitim Ekle' +
+                '</button>' +
+                '<button onclick="closeModal()" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">Kapat</button>' +
+            '</div>' +
+        '</div>'
+    );
+}
+
+function assignTrainings(internId) {
+    const intern = interns.find(x => x.id === internId);
+    showModal('Eğitim Atama',
+        '<form onsubmit="saveAssignedTrainings(event, ' + internId + ')" class="space-y-4">' +
+            '<div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">' +
+                '<h4 class="font-medium text-slate-800 dark:text-slate-200 mb-1">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</h4>' +
+                '<p class="text-sm text-slate-500 dark:text-slate-400">' + escapeHtml(intern.department) + ' • ' + escapeHtml(intern.unit) + '</p>' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Eğitimleri Seçin</label>' +
+                '<div class="border border-slate-200 dark:border-slate-700 rounded-lg p-2 max-h-64 overflow-y-auto space-y-2">' +
+                    trainings.map(t => {
+                        const isAssigned = intern.requiredTrainings && intern.requiredTrainings.some(x => x.id === t.id);
+                        return '<label class="flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer ' + (isAssigned ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent') + '">' +
+                            '<input type="checkbox" id="assign_training_' + t.id + '" value="' + t.id + '"' + (isAssigned ? ' checked disabled' : '') + ' class="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500">' +
+                            '<div class="flex-1 min-w-0">' +
+                                '<div class="text-sm font-medium text-slate-800 dark:text-slate-200">' + escapeHtml(t.title) + '</div>' +
+                                '<div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">' + escapeHtml(t.instructor) + ' • ' + escapeHtml(t.duration) + '</div>' +
+                                (isAssigned ? '<div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">Zaten atanmış</div>' : '') +
+                            '</div>' +
+                        '</label>';
+                    }).join('') +
+                '</div>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Eğitimleri Ata</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function saveAssignedTrainings(e, internId) {
+    e.preventDefault();
+    const intern = interns.find(x => x.id === internId);
+    const selected = [];
+    trainings.forEach(t => {
+        const cb = document.getElementById('assign_training_' + t.id);
+        if (cb && cb.checked && !cb.disabled) {
+            selected.push({ id: t.id, title: t.title, instructor: t.instructor, duration: t.duration, completed: false, completedDate: null });
+        }
+    });
+    if (!intern.requiredTrainings) intern.requiredTrainings = [];
+    selected.forEach(nt => {
+        if (!intern.requiredTrainings.some(x => x.id === nt.id)) intern.requiredTrainings.push(nt);
+    });
+    saveToLocalStorage(); closeModal(); showToast('Eğitimler atandı', 'success'); updateAllTables();
+}
+
+/* ================================================================
+   KRİTİK DÜZELTME: Eğitim tamamlama
+   ----------------------------------------------------------------
+   Artık hasEverCompletedTraining bayrağı KULLANILMIYOR.
+   Sadece TÜM eğitimler tamamlandığında listeden çıkıyor.
+   Kısmen tamamlandığında listede kalır ve modal güncel haliyle açılır.
+   ================================================================ */
+function markTrainingCompleted(internId, trainingId) {
+    const intern = interns.find(x => x.id === internId);
+    const t = intern.requiredTrainings.find(x => x.id === trainingId);
+    if (!t) return;
+
+    t.completed = true;
+    t.completedDate = new Date().toISOString().split('T')[0];
+
+    intern.progress = calculateInternProgress(intern);
+    saveToLocalStorage();
+
+    const allCompleted = intern.requiredTrainings.every(x => x.completed);
+
+    if (allCompleted && intern.unit === 'Birim Atanmadı') {
+        closeModal();
+        showToast('Tüm eğitimler tamamlandı! Birim atanabilir.', 'success');
+        setTimeout(function() { selectUnit(internId); }, 150);
+        return;
+    }
+
+    if (!allCompleted) {
+        closeModal();
+        showToast('Eğitim tamamlandı olarak işaretlendi', 'success');
+        setTimeout(function() { manageTrainings(internId); }, 150);
+    } else {
+        closeModal();
+        showToast('Tüm eğitimler tamamlandı!', 'success');
+    }
+
+    updateAllTables();
+}
+
+function markTrainingIncomplete(internId, trainingId) {
+    const intern = interns.find(x => x.id === internId);
+    const t = intern.requiredTrainings.find(x => x.id === trainingId);
+    if (!t) return;
+    t.completed = false;
+    t.completedDate = null;
+    intern.progress = calculateInternProgress(intern);
+    saveToLocalStorage();
+    closeModal();
+    showToast('Eğitim geri alındı', 'info');
+    setTimeout(function() { manageTrainings(internId); }, 150);
+    updateAllTables();
+}
+
+function removeTraining(internId, trainingId) {
+    const intern = interns.find(x => x.id === internId);
+    const idx = intern.requiredTrainings.findIndex(x => x.id === trainingId);
+    if (idx !== -1) intern.requiredTrainings.splice(idx, 1);
+    saveToLocalStorage();
+    closeModal();
+    showToast('Eğitim kaldırıldı', 'info');
+    setTimeout(function() {
+        if (intern.requiredTrainings.length > 0) manageTrainings(internId);
+    }, 150);
+    updateAllTables();
+}
+
+function selectUnit(internId) {
+    const intern = interns.find(x => x.id === internId);
+    showModal('Birim Atama',
+        '<form onsubmit="assignUnit(event, ' + internId + ')" class="space-y-4">' +
+            '<div class="bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-lg border border-emerald-100 dark:border-emerald-900">' +
+                '<div class="flex items-center gap-2 mb-1">' +
+                    '<i data-lucide="party-popper" class="w-5 h-5 text-emerald-600"></i>' +
+                    '<span class="font-semibold text-emerald-800 dark:text-emerald-300">Tüm eğitimler tamamlandı!</span>' +
+                '</div>' +
+                '<p class="text-sm text-emerald-700 dark:text-emerald-400">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + ' bir birime atanabilir.</p>' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Birim Seçin</label>' +
+                '<div class="space-y-2">' +
+                    units.map(u =>
+                        '<label class="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">' +
+                            '<input type="radio" name="unitSelection" value="' + escapeHtml(u.name) + '" class="mt-1 text-brand-600 focus:ring-brand-500">' +
+                            '<div class="flex-1">' +
+                                '<div class="font-medium text-sm text-slate-800 dark:text-slate-200">' + escapeHtml(u.name) + '</div>' +
+                                '<div class="text-xs text-slate-500 dark:text-slate-400">Sorumlu: ' + escapeHtml(u.supervisor) + '</div>' +
+                            '</div>' +
+                        '</label>'
+                    ).join('') +
+                '</div>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Birime Ata</button>' +
+                '<button type="button" onclick="closeModal();" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">Daha Sonra</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function assignUnit(e, internId) {
+    e.preventDefault();
+    const intern = interns.find(x => x.id === internId);
+    const sel = document.querySelector('input[name="unitSelection"]:checked');
+    if (!sel) { showToast('Lütfen bir birim seçin', 'warning'); return; }
+    intern.unit = sel.value;
+    intern.progress = calculateInternProgress(intern);
+    saveToLocalStorage(); closeModal();
+    showToast('Birim atandı: ' + sel.value, 'success');
+    updateAllTables();
+}
+
+function changeUnitDirect(internId) {
+    const intern = interns.find(x => x.id === internId);
+    showModal('Birim Değiştir',
+        '<form onsubmit="changeUnitDirectly(event, ' + internId + ')" class="space-y-4">' +
+            '<div class="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-lg">' +
+                '<p class="text-sm font-medium text-slate-800 dark:text-slate-200">' + escapeHtml(intern.name) + ' ' + escapeHtml(intern.surname) + '</p>' +
+                '<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mevcut: <strong>' + escapeHtml(intern.unit) + '</strong></p>' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Yeni Birim</label>' +
+                '<select id="newUnitSelect" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:border-brand-500 outline-none" required>' +
+                    units.map(u => '<option value="' + escapeHtml(u.name) + '"' + (u.name === intern.unit ? ' selected' : '') + '>' + escapeHtml(u.name) + ' — ' + escapeHtml(u.supervisor) + '</option>').join('') +
+                    '<option value="Birim Atanmadı"' + (intern.unit === 'Birim Atanmadı' ? ' selected' : '') + '>Birim Atanmadı</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2">' +
+                '<button type="submit" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition">Değiştir</button>' +
+                '<button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</form>'
+    );
+}
+
+function changeUnitDirectly(e, internId) {
+    e.preventDefault();
+    const intern = interns.find(x => x.id === internId);
+    const newUnit = document.getElementById('newUnitSelect').value;
+    if (newUnit && newUnit !== intern.unit) {
+        intern.unit = newUnit;
+        intern.progress = calculateInternProgress(intern);
+        saveToLocalStorage(); closeModal();
+        showToast('Birim değiştirildi', 'success');
+        updateAllTables();
+    } else closeModal();
+}
+
+/* ================================================================
+   EXCEL
+   ================================================================ */
+function exportInternsToExcel() {
+    const active = interns.filter(i => !i.archived);
+    if (active.length === 0) { showToast('Aktarılacak stajyer yok', 'warning'); return; }
+    const headers = ['Ad','Soyad','TC Kimlik No','İletişim','Okul','Bölüm','Staj Birimi','Sorumlu','Tarih Aralığı'];
+    const rows = active.map(i => {
+        const u = units.find(x => x.name === i.unit);
+        const sup = u ? u.supervisor : 'Belirtilmemiş';
+        return ['"' + i.name + '"','"' + i.surname + '"','"' + (i.tcNo || '') + '"','"' + i.phone + '"','"' + i.school + '"','"' + i.department + '"','"' + i.unit + '"','"' + sup + '"','"' + formatDate(i.startDate) + ' - ' + formatDate(i.endDate) + '"'].join(',');
+    });
+    downloadCSV([headers.join(','), ...rows].join('\n'), 'Aktif_Stajyerler_' + new Date().toISOString().split('T')[0] + '.csv');
+    showToast(active.length + ' stajyer Excel\'e aktarıldı', 'success');
+}
+
+function exportToExcel() {
+    const c = interns.filter(i => i.status === 'Tamamlandı' && i.archived);
+    if (c.length === 0) { showToast('Aktarılacak kayıt yok', 'warning'); return; }
+    const headers = ['Ad','Soyad','Telefon','Okul','Bölüm','Birim','Sorumlu','Başlangıç','Bitiş','Süre (Gün)','Toplam Eğitim','Tamamlanan','Başarı (%)','İlerleme (%)','Arşiv Tarihi'];
+    const rows = c.map(i => {
+        const u = units.find(x => x.name === i.unit);
+        const sup = u ? u.supervisor : 'Belirtilmemiş';
+        const dur = Math.ceil((new Date(i.endDate) - new Date(i.startDate)) / (1000 * 60 * 60 * 24));
+        const ct = i.requiredTrainings ? i.requiredTrainings.filter(t => t.completed).length : 0;
+        const tt = i.requiredTrainings ? i.requiredTrainings.length : 0;
+        const rate = tt > 0 ? ((ct / tt) * 100).toFixed(1) : '0';
+        return ['"' + i.name + '"','"' + i.surname + '"','"' + i.phone + '"','"' + i.school + '"','"' + i.department + '"','"' + i.unit + '"','"' + sup + '"','"' + formatDate(i.startDate) + '"','"' + formatDate(i.endDate) + '"','"' + dur + '"','"' + tt + '"','"' + ct + '"','"' + rate + '"','"' + i.progress + '"','"' + (i.archivedDate ? formatDate(i.archivedDate) : '-') + '"'].join(',');
+    });
+    downloadCSV([headers.join(','), ...rows].join('\n'), 'Tamamlanan_Stajyerler_' + new Date().toISOString().split('T')[0] + '.csv');
+    showToast(c.length + ' kayıt Excel\'e aktarıldı', 'success');
+}
+
+function downloadCSV(content, filename) {
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+/* ================================================================
+   YAZDIRMA
+   ================================================================ */
+function printInterns() {
+    const f = interns.filter(i => !i.archived);
+    if (f.length === 0) { showToast('Yazdırılacak stajyer yok', 'warning'); return; }
+    printTable('STAJYER LİSTESİ', f, false);
+}
+function printCompletedInterns() {
+    const f = interns.filter(i => i.status === 'Tamamlandı' && i.archived);
+    if (f.length === 0) { showToast('Yazdırılacak kayıt yok', 'warning'); return; }
+    printTable('TAMAMLANAN STAJYERLER LİSTESİ', f, true);
+}
+function printTable(title, list, isCompleted) {
+    const w = window.open('', '_blank');
+    const rows = list.map(i =>
+        '<tr>' +
+            '<td>' + escapeHtml(i.name) + '</td><td>' + escapeHtml(i.surname) + '</td><td>' + escapeHtml(i.tcNo || '-') + '</td>' +
+            '<td>' + escapeHtml(i.school) + '</td><td>' + escapeHtml(i.department) + '</td><td>' + escapeHtml(i.unit) + '</td>' +
+            '<td>' + formatDate(i.startDate) + '</td><td>' + formatDate(i.endDate) + '</td>' +
+            (isCompleted ? '<td>%' + i.progress + '</td>' : '') +
+        '</tr>'
+    ).join('');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + title + '</title>' +
+    '<style>' +
+        'body { font-family: Arial, sans-serif; font-size: 11px; margin: 1cm; }' +
+        'h1 { text-align: center; font-size: 16px; margin: 0 0 4px; }' +
+        '.meta { text-align: center; font-size: 11px; color: #666; margin-bottom: 15px; }' +
+        'table { width: 100%; border-collapse: collapse; }' +
+        'th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }' +
+        'th { background: #f1f5f9; font-weight: bold; font-size: 10px; text-transform: uppercase; }' +
+        '.no-print { text-align: center; margin-top: 20px; }' +
+        '.no-print button { padding: 8px 18px; margin: 0 4px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }' +
+        '@page { margin: 1cm; }' +
+        '@media print { .no-print { display: none; } }' +
+    '</style></head><body>' +
+    '<h1>' + title + '</h1>' +
+    '<div class="meta">Yazdırma: ' + formatDate(new Date().toISOString()) + ' | Toplam: ' + list.length + '</div>' +
+    '<table><thead><tr>' +
+        '<th>Ad</th><th>Soyad</th><th>TC</th><th>Okul</th><th>Bölüm</th><th>Birim</th><th>Başlangıç</th><th>Bitiş</th>' +
+        (isCompleted ? '<th>İlerleme</th>' : '') +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="no-print">' +
+        '<button onclick="window.print()" style="background:#2563eb;color:white">Yazdır</button>' +
+        '<button onclick="window.close()" style="background:#64748b;color:white">Kapat</button>' +
+    '</div></body></html>');
+    w.document.close();
+    setTimeout(function() { w.focus(); }, 200);
+}
+
+/* ================================================================
+   🔧 KRİTİK DÜZELTME: Katılım Formu — Eğitim Seçimli
+   ----------------------------------------------------------------
+   Önce bir modal açılır, kullanıcı hangi eğitimlerin forma
+   ekleneceğini SEÇER (checkbox listesi). Varsayılan: tümü seçili.
+   ================================================================ */
+function openAttendanceFormModal() {
+    const active = interns.filter(i => !i.archived && i.status === 'Aktif');
+    const needing = active.filter(i => {
+        if (!i.requiredTrainings || i.requiredTrainings.length === 0) return true;
+        return i.requiredTrainings.some(t => !t.completed);
+    });
+
+    if (needing.length === 0) {
+        showToast('Eğitim alması gereken stajyer yok', 'warning');
+        return;
+    }
+
+    const uniqueTrainingsMap = new Map();
+    needing.forEach(i => {
+        (i.requiredTrainings || []).forEach(t => {
+            if (!t.completed) {
+                const full = trainings.find(x => x.id === t.id);
+                uniqueTrainingsMap.set(t.id, {
+                    id: t.id,
+                    title: t.title,
+                    instructor: t.instructor,
+                    duration: t.duration,
+                    topics: full ? full.topics || [] : []
+                });
+            }
+        });
+    });
+
+    const showTrainings = Array.from(uniqueTrainingsMap.values());
+
+    if (showTrainings.length === 0) {
+        showToast('Atanmış tamamlanmamış eğitim bulunamadı', 'warning');
+        return;
+    }
+
+    showModal('Katılım Formu Oluştur',
+        '<div class="space-y-4">' +
+            '<div class="bg-violet-50 dark:bg-violet-950/30 p-3.5 rounded-lg border border-violet-100 dark:border-violet-900">' +
+                '<p class="text-sm text-violet-800 dark:text-violet-300">' +
+                    '<strong>' + needing.length + '</strong> stajyerin eğitim alması gerekiyor. ' +
+                    'Formda yer alacak eğitimleri aşağıdan seçebilirsiniz.' +
+                '</p>' +
+            '</div>' +
+            '<div>' +
+                '<div class="flex items-center justify-between mb-2">' +
+                    '<label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Forma Eklenecek Eğitimler</label>' +
+                    '<div class="flex gap-2">' +
+                        '<button type="button" onclick="toggleAllTrainingSelection(true)" class="text-[11px] text-brand-600 dark:text-brand-400 hover:underline font-medium">Tümünü Seç</button>' +
+                        '<span class="text-slate-300">|</span>' +
+                        '<button type="button" onclick="toggleAllTrainingSelection(false)" class="text-[11px] text-slate-500 hover:underline font-medium">Temizle</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="border border-slate-200 dark:border-slate-700 rounded-lg p-3 max-h-72 overflow-y-auto space-y-2 bg-slate-50 dark:bg-slate-800/40">' +
+                    showTrainings.map(t => {
+                        const hasTopics = t.topics && t.topics.length > 0;
+                        return '<label class="flex items-start gap-2.5 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition">' +
+                            '<input type="checkbox" class="training-select-cb mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500" value="' + t.id + '" checked>' +
+                            '<div class="flex-1 min-w-0">' +
+                                '<div class="text-sm font-semibold text-slate-800 dark:text-slate-200">' + escapeHtml(t.title) + '</div>' +
+                                '<div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">' +
+                                    '<i data-lucide="user" class="w-3 h-3 inline"></i> ' + escapeHtml(t.instructor) +
+                                    '<span class="mx-1">•</span>' +
+                                    '<i data-lucide="clock" class="w-3 h-3 inline"></i> ' + escapeHtml(t.duration) +
+                                '</div>' +
+                                (hasTopics ? '<div class="text-[10px] text-violet-600 dark:text-violet-400 mt-1">Konular: ' + escapeHtml(t.topics.slice(0, 3).join(', ')) + (t.topics.length > 3 ? '...' : '') + '</div>' : '') +
+                            '</div>' +
+                        '</label>';
+                    }).join('') +
+                '</div>' +
+                '<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">' +
+                    '<i data-lucide="info" class="w-3 h-3 inline"></i> Seçili eğitimler yazdırılacak katılım formunda görünecektir.' +
+                '</p>' +
+            '</div>' +
+            '<div class="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">' +
+                '<button onclick="generateAttendanceForm()" class="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-lg font-medium text-sm transition inline-flex items-center justify-center gap-1.5">' +
+                    '<i data-lucide="printer" class="w-4 h-4"></i> Formu Oluştur' +
+                '</button>' +
+                '<button onclick="closeModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-lg font-medium text-sm transition">İptal</button>' +
+            '</div>' +
+        '</div>'
+    );
+    refreshIcons();
+}
+
+function toggleAllTrainingSelection(check) {
+    document.querySelectorAll('.training-select-cb').forEach(cb => { cb.checked = check; });
+}
+
+function generateAttendanceForm() {
+    const selectedIds = [];
+    document.querySelectorAll('.training-select-cb').forEach(cb => {
+        if (cb.checked) selectedIds.push(parseInt(cb.value, 10));
+    });
+
+    if (selectedIds.length === 0) {
+        showToast('En az bir eğitim seçmelisiniz', 'warning');
+        return;
+    }
+
+    const active = interns.filter(i => !i.archived && i.status === 'Aktif');
+    const needing = active.filter(i => {
+        if (!i.requiredTrainings || i.requiredTrainings.length === 0) return true;
+        return i.requiredTrainings.some(t => !t.completed);
+    });
+
+    const selectedTrainings = [];
+    selectedIds.forEach(id => {
+        const full = trainings.find(x => x.id === id);
+        if (full) {
+            selectedTrainings.push({
+                id: full.id,
+                title: full.title,
+                instructor: full.instructor,
+                duration: full.duration,
+                topics: full.topics || []
+            });
+        }
+    });
+
+    closeModal();
+
+    const w = window.open('', '_blank');
+
+    const internRows = needing.slice(0, 12).map((i, idx) =>
+        '<tr>' +
+            '<td style="text-align:center">' + (idx + 1) + '</td>' +
+            '<td>' + escapeHtml(i.name) + ' ' + escapeHtml(i.surname) + '</td>' +
+            '<td style="font-size:8pt">' + escapeHtml(i.school) + '</td>' +
+            '<td style="font-size:8pt">' + escapeHtml(i.department) + '</td>' +
+            '<td>&nbsp;</td>' +
+        '</tr>'
+    ).join('') + Array.from({ length: Math.max(0, 12 - needing.length) }).map((_, idx) =>
+        '<tr><td style="text-align:center">' + (needing.length + idx + 1) + '</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>'
+    ).join('');
+
+    const uniqueInstructors = [...new Set(selectedTrainings.map(t => t.instructor))].slice(0, 2);
+    const instructorRows = uniqueInstructors.map((ins, idx) =>
+        '<tr><td style="text-align:center">' + (idx + 1) + '</td><td>' + escapeHtml(ins) + '</td><td>Eğitim Uzmanı</td><td>&nbsp;</td></tr>'
+    ).join('') + Array.from({ length: Math.max(0, 2 - uniqueInstructors.length) }).map((_, idx) =>
+        '<tr><td style="text-align:center">' + (uniqueInstructors.length + idx + 1) + '</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>'
+    ).join('');
+
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Eğitim Katılım Formu</title>' +
+    '<style>' +
+        'body { font-family: Arial, sans-serif; font-size: 9pt; margin: 0.8cm; line-height: 1.3; }' +
+        '.header { text-align: center; margin-bottom: 12px; }' +
+        '.header h1 { font-size: 13px; margin: 2px 0; }' +
+        '.header h2 { font-size: 11px; margin: 2px 0; }' +
+        '.header h3 { font-size: 10px; margin: 2px 0; }' +
+        '.form-title { text-align: center; font-weight: bold; font-size: 11px; text-decoration: underline; margin: 6px 0 10px; }' +
+        'table { width: 100%; border-collapse: collapse; margin: 6px 0; }' +
+        'th, td { border: 1px solid #000; padding: 4px 5px; font-size: 9pt; }' +
+        'th { background: #f0f0f0; text-align: center; font-size: 8.5pt; }' +
+        '.info-table td { border: none; padding: 3px 4px; }' +
+        '.underline { border-bottom: 1px solid #000; }' +
+        '.section-title { font-weight: bold; font-size: 9.5pt; margin: 10px 0 4px; }' +
+        '.no-print { text-align: center; margin-top: 16px; }' +
+        '.no-print button { padding: 8px 18px; margin: 0 4px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }' +
+        '@page { size: A4 portrait; margin: 0.8cm; }' +
+        '@media print { .no-print { display: none; } }' +
+    '</style></head><body>' +
+
+    '<div class="header">' +
+        '<h1>ADANA BÜYÜKŞEHİR BELEDİYESİ</h1>' +
+        '<h2>ULAŞIM DAİRESİ BAŞKANLIĞI</h2>' +
+        '<h3>RAYLI SİSTEM ŞUBE MÜDÜRLÜĞÜ</h3>' +
+    '</div>' +
+    '<div class="form-title">EĞİTİM KATILIM FORMU</div>' +
+
+    '<table class="info-table">' +
+        '<tr>' +
+            '<td style="width:14%;font-weight:bold">Eğitim Tarihi:</td>' +
+            '<td style="width:20%" class="underline">&nbsp;</td>' +
+            '<td style="width:14%;font-weight:bold;text-align:center">Başlama:</td>' +
+            '<td style="width:15%" class="underline">&nbsp;</td>' +
+            '<td style="width:14%;font-weight:bold;text-align:center">Bitiş:</td>' +
+            '<td style="width:23%" class="underline">&nbsp;</td>' +
+        '</tr>' +
+        '<tr>' +
+            '<td style="font-weight:bold">Eğitim Yeri:</td>' +
+            '<td colspan="5" class="underline">Eğitim Salonu</td>' +
+        '</tr>' +
+    '</table>' +
+
+    selectedTrainings.map(t =>
+        '<div style="margin:8px 0;padding:6px 8px;border:1px solid #000;background:#f9f9f9">' +
+            '<div style="font-weight:bold;text-align:center;font-size:10pt;margin-bottom:3px">' + escapeHtml(t.title) + '</div>' +
+            '<div style="font-size:8.5pt"><strong>Eğitim Veren:</strong> ' + escapeHtml(t.instructor) + ' | <strong>Süre:</strong> ' + escapeHtml(t.duration) + '</div>' +
+            (t.topics && t.topics.length > 0 ? '<div style="font-size:8.5pt;margin-top:2px"><strong>Konular:</strong> ' + escapeHtml(t.topics.slice(0,3).join(', ')) + (t.topics.length > 3 ? '...' : '') + '</div>' : '') +
+        '</div>'
+    ).join('') +
+
+    '<div class="section-title">EĞİTİME KATILAN STAJYERLER</div>' +
+    '<table>' +
+        '<thead><tr>' +
+            '<th style="width:6%">No</th>' +
+            '<th style="width:28%">Ad Soyad</th>' +
+            '<th style="width:32%">Okul</th>' +
+            '<th style="width:18%">Bölüm</th>' +
+            '<th style="width:16%">İmza</th>' +
+        '</tr></thead>' +
+        '<tbody>' + internRows + '</tbody>' +
+    '</table>' +
+
+    '<div class="section-title">EĞİTİM VEREN(LER)</div>' +
+    '<table>' +
+        '<thead><tr>' +
+            '<th style="width:6%">No</th>' +
+            '<th style="width:35%">Ad Soyad</th>' +
+            '<th style="width:25%">Unvan/Görev</th>' +
+            '<th style="width:34%">İmza</th>' +
+        '</tr></thead>' +
+        '<tbody>' + instructorRows + '</tbody>' +
+    '</table>' +
+
+    '<div class="no-print">' +
+        '<button onclick="window.print()" style="background:#7c3aed;color:white">Yazdır</button>' +
+        '<button onclick="window.close()" style="background:#64748b;color:white">Kapat</button>' +
+    '</div>' +
+    '</body></html>');
+    w.document.close();
+    setTimeout(function() { w.focus(); }, 200);
+}
+
+/* ================================================================
+   DIŞA / İÇE AKTARMA / DOSYA BAĞLANTISI
+   ================================================================ */
+let connectedFileHandle = null;
+const FILE_HANDLE_KEY = 'connectedFileHandle';
+const fsApiSupported = 'showSaveFilePicker' in window;
+
+function buildDataPayload() {
+    return { interns, trainings, units, schools, departments, lastUpdated: new Date().toISOString() };
+}
+
+function applyImportedData(data, opts) {
+    opts = opts || {};
+    if (!data || typeof data !== 'object') return false;
+    if (data.interns) interns = data.interns;
+    if (data.trainings) trainings = data.trainings;
+    if (data.units) units = data.units;
+    if (data.schools) schools = data.schools;
+    if (data.departments) departments = data.departments;
+    if (!opts.skipSave) saveToLocalStorage();
+    updateAllInternProgress();
+    updateAllTables();
+    if (typeof loadUnits === 'function') { loadUnits(); loadSchools(); loadDepartments(); loadTrainings(); }
+    return true;
+}
+
+function exportData() {
+    const payload = buildDataPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stajyer-verileri-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Veriler indirildi', 'success');
+    const el = document.getElementById('importStatus');
+    if (el) { el.textContent = 'Dosya indirildi.'; el.className = 'text-xs mt-3 text-emerald-600 dark:text-emerald-400'; }
+}
+
+function importDataFromFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const el = document.getElementById('importStatus');
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data || typeof data !== 'object') throw new Error('Geçersiz format');
+            if (!confirm('Mevcut verilerin ÜZERİNE yazılacak. Devam edilsin mi?')) { event.target.value = ''; return; }
+            applyImportedData(data);
+            if (el) { el.textContent = 'Veriler içe aktarıldı.'; el.className = 'text-xs mt-3 text-emerald-600 dark:text-emerald-400'; }
+            showToast('Veriler içe aktarıldı', 'success');
+        } catch (err) {
+            console.error(err);
+            if (el) { el.textContent = 'Dosya okunamadı.'; el.className = 'text-xs mt-3 text-red-600'; }
+            showToast('Dosya okunamadı', 'error');
+        } finally { event.target.value = ''; }
+    };
+    reader.onerror = function() { showToast('Dosya okuma hatası', 'error'); };
+    reader.readAsText(file);
+}
+
+async function verifyFilePermission(fh, silentOnly) {
+    const opts = { mode: 'readwrite' };
+    try {
+        if ((await fh.queryPermission(opts)) === 'granted') return true;
+        if (silentOnly) return false;
+        if ((await fh.requestPermission(opts)) === 'granted') return true;
+    } catch (e) { console.error(e); }
+    return false;
+}
+async function readFileHandleContent(fh) {
+    try {
+        const file = await fh.getFile();
+        const text = await file.text();
+        if (!text || !text.trim()) return null;
+        return JSON.parse(text);
+    } catch (e) { console.error(e); return null; }
+}
+async function writeToFileHandle(fh, data) {
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(data, null, 2));
+    await w.close();
+}
+function updateFileConnectionUI(state) {
+    const nameEl = document.getElementById('connectedFileName');
+    const cb = document.getElementById('connectFileBtn');
+    const rb = document.getElementById('reconnectFileBtn');
+    const db = document.getElementById('disconnectFileBtn');
+    if (!nameEl) return;
+
+    if (!fsApiSupported) {
+        nameEl.innerHTML = '<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Bu tarayıcı desteklemiyor. Chrome/Edge kullanın.';
+        nameEl.className = 'text-xs text-amber-500 flex items-center gap-1.5';
+        if (cb) cb.classList.add('hidden');
+        refreshIcons(); return;
+    }
+
+    if (state === 'needs-permission' && connectedFileHandle) {
+        nameEl.innerHTML = '<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> "' + escapeHtml(connectedFileHandle.name) + '" için yeniden bağlanın';
+        nameEl.className = 'text-xs text-amber-600 flex items-center gap-1.5';
+        if (rb) rb.classList.remove('hidden');
+        if (db) db.classList.remove('hidden');
+        if (cb) cb.classList.add('hidden');
+    } else if (connectedFileHandle) {
+        nameEl.innerHTML = '<i data-lucide="link" class="w-3.5 h-3.5"></i> Bağlı: <strong>' + escapeHtml(connectedFileHandle.name) + '</strong>';
+        nameEl.className = 'text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5';
+        if (rb) rb.classList.add('hidden');
+        if (db) db.classList.remove('hidden');
+        if (cb) { cb.classList.remove('hidden'); cb.innerHTML = '<i data-lucide="folder-open" class="w-4 h-4"></i> Farklı Dosya Seç'; }
+    } else {
+        nameEl.innerHTML = '<i data-lucide="info" class="w-3.5 h-3.5"></i> Bağlı değil (veriler sadece bu tarayıcıda)';
+        nameEl.className = 'text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5';
+        if (rb) rb.classList.add('hidden');
+        if (db) db.classList.add('hidden');
+        if (cb) { cb.classList.remove('hidden'); cb.innerHTML = '<i data-lucide="folder-open" class="w-4 h-4"></i> Veri Dosyasına Bağlan'; }
+    }
+    refreshIcons();
+}
+async function connectDataFile() {
+    if (!fsApiSupported) { showToast('Chrome/Edge kullanın', 'error'); return; }
+    try {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: 'stajyer-verileri.json',
+            types: [{ description: 'JSON Dosyası', accept: { 'application/json': ['.json'] } }]
+        });
+        const granted = await verifyFilePermission(handle, false);
+        if (!granted) { showToast('İzin verilmedi', 'error'); return; }
+        connectedFileHandle = handle;
+        await idbSet(FILE_HANDLE_KEY, handle);
+        const existing = await readFileHandleContent(handle);
+        let useFile = false;
+        if (existing) useFile = confirm('Dosyada kayıtlı veri var.\nTamam: Dosyadaki yüklensin\nİptal: Mevcut veriler dosyaya yazılsın');
+        if (useFile) applyImportedData(existing);
+        else { await writeToFileHandle(handle, buildDataPayload()); saveToLocalStorage(); }
+        updateFileConnectionUI();
+        showToast('Dosyaya bağlanıldı', 'success');
+    } catch (err) {
+        if (err.name !== 'AbortError') { console.error(err); showToast('Dosya seçim hatası', 'error'); }
+    }
+}
+async function reconnectDataFile() {
+    if (!connectedFileHandle) return;
+    const granted = await verifyFilePermission(connectedFileHandle, false);
+    if (!granted) { showToast('İzin verilmedi', 'error'); return; }
+    const data = await readFileHandleContent(connectedFileHandle);
+    if (data) applyImportedData(data);
+    updateFileConnectionUI();
+    showToast('Yeniden bağlanıldı', 'success');
+}
+function disconnectDataFile() {
+    connectedFileHandle = null;
+    idbSet(FILE_HANDLE_KEY, null).catch(function() {});
+    updateFileConnectionUI();
+    showToast('Dosya bağlantısı kaldırıldı', 'info');
+}
+async function tryRestoreFileConnection() {
+    if (!fsApiSupported) { updateFileConnectionUI(); return false; }
+    try {
+        const handle = await idbGet(FILE_HANDLE_KEY);
+        if (!handle) { updateFileConnectionUI(); return false; }
+        connectedFileHandle = handle;
+        const granted = await verifyFilePermission(handle, true);
+        if (granted) {
+            const data = await readFileHandleContent(handle);
+            if (data) { applyImportedData(data, { skipSave: true }); updateFileConnectionUI(); return true; }
+        }
+        updateFileConnectionUI('needs-permission');
+        return false;
+    } catch (e) { console.error(e); updateFileConnectionUI(); return false; }
+}
+
+/* ================================================================
+   TÜM TABLOLARI GÜNCELLE
+   ================================================================ */
+function updateAllTables() {
+    updateDashboard();
+    const active = document.querySelector('.tab-content.active');
+    if (active) {
+        if (active.id === 'interns') { populateInternsFilters(); renderInterns(interns.filter(i => !i.archived)); }
+        if (active.id === 'completed') { populateCompletedFilters(); renderCompletedInterns(interns.filter(i => i.status === 'Tamamlandı' && i.archived)); }
+    }
+    refreshIcons();
+}
+
+/* ================================================================
+   INIT
+   ================================================================ */
+document.addEventListener('DOMContentLoaded', async function() {
+    refreshIcons();
+    const fileLoaded = await tryRestoreFileConnection();
+    let dataLoaded = fileLoaded;
+    if (!fileLoaded) dataLoaded = await loadFromLocalStorage();
+    if (!dataLoaded) saveToLocalStorage();
+
+    updateAllInternProgress();
+    updateDashboard();
+    populateInternsFilters();
+    populateCompletedFilters();
+    renderInterns(interns.filter(i => !i.archived));
+    refreshIcons();
+
+    if (typeof Chart === 'undefined') setTimeout(function() { renderCharts(); }, 500);
+});
+</script>
+</body>
+</html>
