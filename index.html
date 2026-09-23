@@ -648,21 +648,29 @@ async function loadInitialData() {
             return true;
         }
 
-        // 2) GitHub'dan dene
-        const githubData = await fetchFromGitHub();
-        if (githubData && githubData.interns && githubData.interns.length > 0) {
-            applyData(githubData);
-            showToast('GitHub verileri yüklendi, Sheets\'e kaydediliyor...', 'info');
-            await saveToCloud();
-            showToast('Sheets\'e kaydedildi', 'success');
+        // 2) Sheets BOŞ veya erişilemedi → ÖNCE yerel veriyi dene!
+        //    (Yerel veri güncel olabilir - kullanıcının son ekledikleri)
+        const localLoaded = await loadFromLocalStorage();
+        if (localLoaded && interns.length > 0) {
+            applyData({ interns: interns, trainings: trainings, units: units, schools: schools, departments: departments });
+            showToast('Yerel veriler yüklendi (' + interns.length + ' stajyer)', 'info');
+            // ✅ Sheets'e YAZMA - kullanıcının verisini ezme!
+            // Sadece arka planda tekrar dene
+            setTimeout(function() {
+                saveToCloud();
+            }, 3000);
             setSyncStatus('saved');
             return true;
         }
 
-        // 3) Yerel veriye düş
-        const localLoaded = await loadFromLocalStorage();
-        if (localLoaded) {
-            showToast('Yerel veriler yüklendi', 'info');
+        // 3) EN SON ÇARE: GitHub'dan çek (İLK KURULUM için)
+        const githubData = await fetchFromGitHub();
+        if (githubData && githubData.interns && githubData.interns.length > 0) {
+            applyData(githubData);
+            showToast('İlk kurulum: GitHub verileri yüklendi', 'info');
+            // İlk kurulumda Sheets'e yaz
+            await saveToCloud();
+            showToast('Sheets\'e kaydedildi', 'success');
             setSyncStatus('saved');
             return true;
         }
@@ -840,6 +848,18 @@ function parseFlatRows(rows) {
    ================================================================ */
 async function saveToCloud() {
     try {
+        // ⚠️ KORUMA 1: Yerel veri boşsa Sheets'e yazma (ezmesin!)
+        if (!interns || interns.length === 0) {
+            console.warn('⚠️ Yerel veri boş, Sheets\'e yazılmadı');
+            return false;
+        }
+        
+        // ⚠️ KORUMA 2: Config boşsa Sheets'e yazma (birimler silinmesin)
+        if (!units || units.length === 0) {
+            console.warn('⚠️ Config boş, Sheets\'e yazılmadı');
+            return false;
+        }
+        
         const rows = buildFlatRows();
         const config = {
             units: units,
