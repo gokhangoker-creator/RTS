@@ -636,57 +636,148 @@ const GITHUB_JSON_URL = "https://raw.githubusercontent.com/gokhangoker-creator/R
    2. Boşsa GitHub'dan yükle → Sheets'e yaz
    3. O da olmazsa yerel veriye düş
    ================================================================ */
+/* ================================================================
+   BAĞLANTI DURUMU
+   ================================================================ */
+let isConnected = false;
+let retryTimer = null;
+let retryCount = 0;
+
 async function loadInitialData() {
     setSyncStatus('loading');
-    try {
-        // 1) Sheets'ten dene
-        const cloudData = await fetchFromCloud();
-        if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
-            applyData(cloudData);
-            showToast('Cloud verileri yüklendi (' + cloudData.interns.length + ' stajyer)', 'success');
-            setSyncStatus('saved');
-            return true;
-        }
-
-        // 2) Sheets BOŞ veya erişilemedi → ÖNCE yerel veriyi dene!
-        //    (Yerel veri güncel olabilir - kullanıcının son ekledikleri)
-        const localLoaded = await loadFromLocalStorage();
-        if (localLoaded && interns.length > 0) {
-            applyData({ interns: interns, trainings: trainings, units: units, schools: schools, departments: departments });
-            showToast('Yerel veriler yüklendi (' + interns.length + ' stajyer)', 'info');
-            // ✅ Sheets'e YAZMA - kullanıcının verisini ezme!
-            // Sadece arka planda tekrar dene
-            setTimeout(function() {
-                saveToCloud();
-            }, 3000);
-            setSyncStatus('saved');
-            return true;
-        }
-
-        // 3) EN SON ÇARE: GitHub'dan çek (İLK KURULUM için)
-        const githubData = await fetchFromGitHub();
-        if (githubData && githubData.interns && githubData.interns.length > 0) {
-            applyData(githubData);
-            showToast('İlk kurulum: GitHub verileri yüklendi', 'info');
-            // İlk kurulumda Sheets'e yaz
-            await saveToCloud();
-            showToast('Sheets\'e kaydedildi', 'success');
-            setSyncStatus('saved');
-            return true;
-        }
-
-        showToast('Hiçbir veri kaynağı bulunamadı', 'warning');
+    
+    // Sheets'e bağlanmayı dene
+    const cloudData = await fetchFromCloud();
+    
+    if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
+        // ✅ BAĞLANTI BAŞARILI
+        isConnected = true;
+        retryCount = 0;
+        applyData(cloudData);
+        showToast('Veriler yüklendi (' + cloudData.interns.length + ' stajyer)', 'success');
         setSyncStatus('saved');
-        return false;
-
-    } catch (err) {
-        console.error('Yükleme hatası:', err);
-        setSyncStatus('error');
-        showToast('Yükleme hatası', 'error');
-        return false;
+        hideConnectionError();
+        return true;
     }
+    
+    // ❌ BAĞLANTI BAŞARISIZ
+    isConnected = false;
+    showConnectionError();
+    startRetrying();
+    return false;
 }
 
+/* Bağlantı hatası ekranı göster */
+function showConnectionError() {
+    setSyncStatus('error');
+    
+    // Ana içeriği gizle
+    const main = document.getElementById('mainContent');
+    if (main) main.style.display = 'none';
+    
+    // Hata ekranını göster
+    let errorScreen = document.getElementById('connectionErrorScreen');
+    if (!errorScreen) {
+        errorScreen = document.createElement('div');
+        errorScreen.id = 'connectionErrorScreen';
+        errorScreen.className = 'fixed inset-0 z-[9000] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4';
+        document.body.appendChild(errorScreen);
+    }
+    
+    errorScreen.innerHTML = 
+        '<div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-8 border border-slate-200 dark:border-slate-800 text-center">' +
+            '<div class="w-20 h-20 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">' +
+                '<i data-lucide="wifi-off" class="w-10 h-10 text-red-600 dark:text-red-400"></i>' +
+            '</div>' +
+            '<h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Bağlantı Kurulamadı</h2>' +
+            '<p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Google Sheets\'e bağlanılamıyor. İnternet bağlantınızı kontrol edin.</p>' +
+            '<div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 mb-6">' +
+                '<p class="text-xs text-amber-800 dark:text-amber-300">' +
+                    '<strong>⚠️ Önemli:</strong> Bağlantı kurulana kadar veriler <strong>kaydedilmez</strong>. ' +
+                    'Veri kaybını önlemek için bağlantı bekleniyor.' +
+                '</p>' +
+            '</div>' +
+            '<div class="space-y-2">' +
+                '<button onclick="manualRetry()" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-3 rounded-lg font-semibold text-sm transition shadow-lg shadow-brand-600/20 inline-flex items-center justify-center gap-2">' +
+                    '<i data-lucide="refresh-cw" class="w-4 h-4"></i>' +
+                    'Şimdi Tekrar Dene' +
+                '</button>' +
+                '<p class="text-xs text-slate-400 dark:text-slate-500" id="retryStatus">' +
+                    'Otomatik deneme başlıyor...' +
+                '</p>' +
+            '</div>' +
+        '</div>';
+    
+    errorScreen.style.display = 'flex';
+    refreshIcons();
+}
+
+/* Bağlantı hatası ekranını gizle */
+function hideConnectionError() {
+    const errorScreen = document.getElementById('connectionErrorScreen');
+    if (errorScreen) errorScreen.style.display = 'none';
+    const main = document.getElementById('mainContent');
+    if (main) main.style.display = '';
+}
+
+/* Otomatik tekrar deneme başlat */
+function startRetrying() {
+    if (retryTimer) clearInterval(retryTimer);
+    
+    retryTimer = setInterval(async function() {
+        retryCount++;
+        const statusEl = document.getElementById('retryStatus');
+        if (statusEl) {
+            statusEl.textContent = retryCount + '. deneme yapılıyor...';
+        }
+        
+        const cloudData = await fetchFromCloud();
+        if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
+            // ✅ BAĞLANTI SAĞLANDI
+            clearInterval(retryTimer);
+            retryTimer = null;
+            retryCount = 0;
+            isConnected = true;
+            
+            applyData(cloudData);
+            hideConnectionError();
+            setSyncStatus('saved');
+            showToast('✅ Bağlantı sağlandı! Veriler yüklendi.', 'success');
+            refreshIcons();
+            
+            if (typeof Chart === 'undefined') setTimeout(function() { renderCharts(); }, 500);
+        } else {
+            // ❌ HÂLÂ BAĞLANAMIYOR
+            if (statusEl) {
+                statusEl.textContent = retryCount + '. deneme başarısız. 5 saniye sonra tekrar denenecek...';
+            }
+        }
+    }, 5000);   // Her 5 saniyede dene
+}
+
+/* Manuel tekrar deneme */
+async function manualRetry() {
+    const statusEl = document.getElementById('retryStatus');
+    if (statusEl) statusEl.textContent = 'Deneniyor...';
+    
+    const cloudData = await fetchFromCloud();
+    if (cloudData && cloudData.interns && cloudData.interns.length > 0) {
+        if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+        retryCount = 0;
+        isConnected = true;
+        
+        applyData(cloudData);
+        hideConnectionError();
+        setSyncStatus('saved');
+        showToast('✅ Bağlantı sağlandı!', 'success');
+        refreshIcons();
+        
+        if (typeof Chart === 'undefined') setTimeout(function() { renderCharts(); }, 500);
+    } else {
+        if (statusEl) statusEl.textContent = '❌ Bağlantı kurulamadı. 5 saniye sonra tekrar denenecek...';
+        showToast('Bağlantı kurulamadı', 'error');
+    }
+}
 /* ================================================================
    SHEETS'TEN OKU
    ================================================================ */
@@ -848,6 +939,13 @@ function parseFlatRows(rows) {
    ================================================================ */
 async function saveToCloud() {
     try {
+        // ⚠️ KORUMA 0: Bağlantı yoksa kaydetme (veri kaybını önler!)
+        if (!isConnected) {
+            console.warn('⚠️ Bağlantı yok, kaydedilmedi');
+            showToast('⚠️ Bağlantı yok! Veriler kaydedilmedi.', 'warning');
+            return false;
+        }
+        
         // ⚠️ KORUMA 1: Yerel veri boşsa Sheets'e yazma (ezmesin!)
         if (!interns || interns.length === 0) {
             console.warn('⚠️ Yerel veri boş, Sheets\'e yazılmadı');
@@ -1219,10 +1317,11 @@ function setSyncStatus(state) {
     const el = document.getElementById('syncStatus');
     if (!el) return;
     const map = {
-        saving:  { icon:'loader-2', text:'Kaydediliyor...', cls:'text-amber-500', spin:true },
-        saved:   { icon:'check-circle-2', text:'Kaydedildi', cls:'text-emerald-600', spin:false },
-        error:   { icon:'alert-circle', text:'Kayıt hatası', cls:'text-red-600', spin:false },
-        loading: { icon:'loader-2', text:'Yükleniyor...', cls:'text-brand-500', spin:true }
+        saving:       { icon:'loader-2', text:'Kaydediliyor...', cls:'text-amber-500', spin:true },
+        saved:        { icon:'check-circle-2', text:'Kaydedildi', cls:'text-emerald-600', spin:false },
+        error:        { icon:'alert-circle', text:'Kayıt hatası', cls:'text-red-600', spin:false },
+        loading:      { icon:'loader-2', text:'Yükleniyor...', cls:'text-brand-500', spin:true },
+        disconnected: { icon:'wifi-off', text:'Bağlantı yok', cls:'text-red-600', spin:false }
     };
     const info = map[state] || map.saved;
     el.className = 'text-xs font-medium flex items-center gap-1.5 ' + info.cls;
@@ -1234,7 +1333,11 @@ function saveToLocalStorage() {
     clearTimeout(saveDebounceTimer);
     saveDebounceTimer = setTimeout(async function() {
         await persistData();
-        await saveToCloud();
+        if (isConnected) {
+            await saveToCloud();
+        } else {
+            console.warn('⚠️ Bağlantı yok, buluta kaydedilmedi');
+        }
     }, 500);
 }
 async function persistData() {
